@@ -1,10 +1,6 @@
 import { useState, useCallback } from 'react'
 import { haversineDistance } from '../utils/geoUtils'
 
-/**
- * Find the route coordinate (lat, lng) closest to a given km mark from start.
- * coords = GeoJSON [lng, lat] pairs
- */
 function getRoutePointAtKm(coords, targetKm) {
   let accumulated = 0
   for (let i = 1; i < coords.length; i++) {
@@ -13,99 +9,70 @@ function getRoutePointAtKm(coords, targetKm) {
       coords[i][1],     coords[i][0]
     )
     accumulated += seg
-    if (accumulated >= targetKm) {
-      return { lat: coords[i][1], lng: coords[i][0] }
-    }
+    if (accumulated >= targetKm) return { lat: coords[i][1], lng: coords[i][0] }
   }
   const last = coords[coords.length - 1]
   return { lat: last[1], lng: last[0] }
 }
 
-/**
- * Reverse geocode a lat/lng to a short city name via Nominatim.
- */
 async function reverseGeocode(lat, lng) {
   try {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10`,
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=12`,
       { headers: { 'Accept-Language': 'sr' } }
     )
     const data = await res.json()
     const addr = data.address || {}
-    return addr.city || addr.town || addr.village || addr.county || data.display_name?.split(',')[0] || `${lat.toFixed(2)}, ${lng.toFixed(2)}`
+    return addr.city || addr.town || addr.village || addr.suburb || data.display_name?.split(',')[0] || '—'
   } catch {
-    return `${lat.toFixed(2)}, ${lng.toFixed(2)}`
+    return '—'
   }
 }
 
-/**
- * Priority categories to show per recommendation card, in display order.
- */
-const PRIO_CATEGORIES = ['fuel', 'rest_area', 'services', 'restaurant', 'fast_food', 'cafe', 'hotel', 'motel', 'hostel', 'camp_site']
+// Ordered by priority — first match per slot wins
+const PICK_SLOTS = [
+  { slot: 'fuel',       categories: ['fuel'] },
+  { slot: 'food',       categories: ['restaurant', 'fast_food', 'cafe'] },
+  { slot: 'sleep',      categories: ['hotel', 'motel', 'hostel'] },
+]
 
-/**
- * Given route coordinates, total distance, and Overpass POIs, generate
- * N smart stop recommendations at evenly-spaced km intervals.
- *
- * Each recommendation contains:
- *   { km, lat, lng, cityName, byCategory: { fuel: [...], restaurant: [...], ... } }
- */
+function findTopPicks(pois, center, radiusKm = 15) {
+  const nearby = pois
+    .map(p => ({ ...p, _d: haversineDistance(p.lat, p.lng, center.lat, center.lng) }))
+    .filter(p => p._d <= radiusKm)
+    .sort((a, b) => a._d - b._d)
+
+  return PICK_SLOTS.map(({ slot, categories }) => {
+    const poi = nearby.find(p => categories.includes(p.category))
+    return poi ? { slot, poi } : null
+  }).filter(Boolean)
+}
+
 export default function useSmartStops() {
   const [suggestions, setSuggestions] = useState([])
   const [loading, setLoading] = useState(false)
 
-  /**
-   * @param {Array} routeCoords  - GeoJSON [lng, lat] pairs
-   * @param {Array} pois         - POI objects from Geoapify
-   * @param {number} totalDistanceKm
-   * @param {number} [requestedCount=3] - how many stops the user wants
-   */
-  const buildSuggestions = useCallback(async (routeCoords, pois, totalDistanceKm, requestedCount = 3) => {
+  const buildSuggestions = useCallback(async (routeCoords, pois, totalDistanceKm, requestedCount = 2) => {
     if (!routeCoords?.length || !totalDistanceKm) return
 
     setLoading(true)
     setSuggestions([])
 
-    // Generate a pool of (requestedCount * 2 + 1) evenly-spaced candidates,
-    // capped at 8, so "Give me more" has fresh options to show.
-    const poolSize = Math.min(requestedCount * 2 + 1, 8)
-
-    // Evenly-spaced km marks across the full route
+    // Build a pool 2× bigger than requested so "show different" works
+    const poolSize = Math.min(requestedCount * 2, 6)
     const kmMarks = Array.from({ length: poolSize }, (_, i) =>
       Math.round(totalDistanceKm * (i + 1) / (poolSize + 1))
     )
 
     const results = await Promise.all(
-      kmMarks.map(async (targetKm) => {
-        const point = getRoutePointAtKm(routeCoords, targetKm)
-
-        // Find POIs within 20km of this stop point
-        const RADIUS_KM = 20
-        const nearby = pois.filter(
-          (p) => haversineDistance(p.lat, p.lng, point.lat, point.lng) < RADIUS_KM
-        )
-
-        // Group by category
-        const byCategory = {}
-        for (const poi of nearby) {
-          if (!byCategory[poi.category]) byCategory[poi.category] = []
-          byCategory[poi.category].push(poi)
-        }
-
-        // Only keep stops where we found at least one useful POI
-        const hasUsefulPOIs = PRIO_CATEGORIES.some((cat) => byCategory[cat]?.length > 0)
-
-        // Reverse geocode to get the nearest town name
-        const cityName = await reverseGeocode(point.lat, point.lng)
-
-        return {
-          km: targetKm,
-          lat: point.lat,
-          lng: point.lng,
-          cityName,
-          byCategory,
-          hasUsefulPOIs,
-        }
+      kmMarks.map(async (km) => {
+        const point = getRoutePointAtKm(routeCoords, km)
+        const [cityName, picks] = await Promise.all([
+          reverseGeocode(point.lat, point.lng),
+          Promise.resolve(findTopPicks(pois, point)),
+        ])
+        const driveTimeMin = Math.round(km * 60 / 90) // ~90 km/h avg
+        return { km, driveTimeMin, cityName, lat: point.lat, lng: point.lng, picks }
       })
     )
 

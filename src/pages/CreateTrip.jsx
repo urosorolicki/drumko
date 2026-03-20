@@ -875,16 +875,11 @@ function StepBasics({ form, updateForm }) {
    ============================================ */
 function StopsPanel({ form, pois, suggestions, smartLoading, poisLoading, poisError, wantedStops, onWantedStopsChange, onAddStop, onRemoveStop, onRetryPOIs }) {
   const [tab, setTab] = useState('preporuke')
-  const [discoverFilter, setDiscoverFilter] = useState('all')
+  const [discoverFilter, setDiscoverFilter] = useState(null)
   const [showAll, setShowAll] = useState(false)
-  const [expandedSuggestion, setExpandedSuggestion] = useState(null)
-  const [expandedCategory, setExpandedCategory] = useState({})
   const [suggPage, setSuggPage] = useState(0)
 
-  // Reset page when suggestions pool changes or user changes wanted count
   useEffect(() => { setSuggPage(0) }, [suggestions, wantedStops])
-
-  const visibleSuggestions = suggestions.slice(suggPage * wantedStops, (suggPage + 1) * wantedStops)
 
   const routeCoords = form.route?.geometry?.coordinates ?? null
 
@@ -957,20 +952,20 @@ function StopsPanel({ form, pois, suggestions, smartLoading, poisLoading, poisEr
 
           {/* ── PREPORUKE TAB ── */}
           {tab === 'preporuke' && (
-            <motion.div key="preporuke" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div key="preporuke" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
 
-              {/* Stop count picker — always visible */}
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-xs font-bold text-muted">Koliko pauza?</span>
-                <div className="flex gap-1 ml-auto">
-                  {[1, 2, 3, 4, 5].map(n => (
+              {/* How many stops? */}
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-bold text-muted">Koliko pauza?</p>
+                <div className="flex gap-1.5 ml-auto">
+                  {[1, 2, 3].map(n => (
                     <button
                       key={n}
                       onClick={() => { onWantedStopsChange(n); setSuggPage(0) }}
-                      className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      className={`w-9 h-9 rounded-xl text-sm font-bold transition-all cursor-pointer ${
                         wantedStops === n
-                          ? 'bg-primary text-white shadow-[0_2px_0_rgba(249,115,22,0.4)]'
-                          : 'bg-orange-50 text-muted hover:bg-orange-100 border border-orange-100'
+                          ? 'bg-primary text-white shadow-[0_3px_0_rgba(249,115,22,0.35)]'
+                          : 'bg-orange-50 text-muted hover:bg-orange-100 border-2 border-orange-100'
                       }`}
                     >
                       {n}
@@ -979,137 +974,118 @@ function StopsPanel({ form, pois, suggestions, smartLoading, poisLoading, poisEr
                 </div>
               </div>
 
+              {/* States */}
               {smartLoading || poisLoading ? (
                 <div className="text-center py-10">
                   <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                   <p className="text-sm font-semibold text-text mb-1">Analiziram rutu...</p>
-                  <p className="text-xs text-muted">Tražim idealna mesta za pauzu</p>
+                  <p className="text-xs text-muted">Nalazim idealna mesta za pauzu</p>
                 </div>
               ) : !form.route?.geometry ? (
                 <div className="text-center py-10 px-4">
-                  <p className="text-4xl mb-3">🗺️</p>
-                  <p className="text-sm font-bold text-text mb-1">Ruta nije izračunata</p>
-                  <p className="text-xs text-muted">Dodaj polazak i odredište pa sačekaj da se ruta učita</p>
+                  <p className="text-3xl mb-2">🗺️</p>
+                  <p className="text-sm font-bold text-text mb-1">Unesi start i cilj</p>
+                  <p className="text-xs text-muted">Preporuke se pojavljuju čim se ruta izračuna</p>
                 </div>
               ) : suggestions.length === 0 ? (
-                <div className="text-center py-10 px-4">
-                  <p className="text-4xl mb-3">🔄</p>
-                  <p className="text-sm font-bold text-text mb-1">Čekam podatke o mestima...</p>
-                  <p className="text-xs text-muted">Preporuke se prikazuju čim se učitaju mesta uz rutu</p>
+                <div className="text-center py-10">
+                  <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-3" />
+                  <p className="text-xs text-muted">Tražim mesta uz rutu...</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted px-1">
-                    Set {suggPage + 1} · {visibleSuggestions.length} pauze uz rutu
-                  </p>
-
-                  {visibleSuggestions.map((sug, si) => {
-                    const globalIdx = suggPage * wantedStops + si
-                    const isExpanded = expandedSuggestion === globalIdx
-                    // Only show categories that have POIs, prioritised
-                    const PRIO = ['fuel', 'restaurant', 'fast_food', 'cafe', 'hotel', 'motel', 'rest_area', 'supermarket', 'attraction', 'pharmacy']
-                    const catKeys = [
-                      ...PRIO.filter(k => sug.byCategory[k]?.length > 0),
-                      ...Object.keys(sug.byCategory).filter(k => sug.byCategory[k]?.length > 0 && !PRIO.includes(k)),
-                    ]
-                    // Header shows up to 4 category icons — no counts
-                    const headerCats = catKeys.slice(0, 4)
+                <>
+                  {/* Stop cards */}
+                  {suggestions.slice(suggPage * wantedStops, (suggPage + 1) * wantedStops).map((sug, si) => {
+                    const hours = Math.floor(sug.driveTimeMin / 60)
+                    const mins = sug.driveTimeMin % 60
+                    const driveLabel = hours > 0 ? `${hours}h ${mins}min` : `${mins}min`
+                    const cityAlreadyAdded = addedNames.has(sug.cityName)
 
                     return (
-                      <div
-                        key={globalIdx}
-                        className="border-2 border-orange-100 rounded-2xl overflow-hidden bg-orange-50/40"
+                      <motion.div
+                        key={`${suggPage}-${si}`}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: si * 0.07 }}
+                        className="rounded-2xl border-2 border-orange-100 bg-white overflow-hidden shadow-[0_3px_0_rgba(249,115,22,0.1)]"
                       >
-                        {/* Stop header — click anywhere to expand */}
-                        <button
-                          onClick={() => setExpandedSuggestion(isExpanded ? null : globalIdx)}
-                          className="w-full flex items-center gap-3 p-3 text-left cursor-pointer hover:bg-orange-50/60 transition-colors"
-                        >
-                          <div className="w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-[0_3px_0_rgba(249,115,22,0.4)]">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-orange-50 to-amber-50/60 px-4 py-3 flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-primary text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-[0_2px_0_rgba(249,115,22,0.4)]">
                             {si + 1}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-text truncate">{sug.cityName}</p>
-                            <p className="text-[10px] text-muted font-semibold">~{sug.km} km od polaska</p>
+                            <p className="text-[10px] text-muted font-semibold">{sug.km} km · {driveLabel} od polaska</p>
                           </div>
-                          {/* Just emoji icons — no counts */}
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {headerCats.map(cat => (
-                              <span key={cat} className="text-base">{POI_STYLE[cat]?.emoji ?? '📍'}</span>
-                            ))}
-                            {catKeys.length === 0 && <span className="text-xs text-muted">—</span>}
-                          </div>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-                            className="shrink-0 text-muted transition-transform duration-200"
-                            style={{ transform: isExpanded ? 'rotate(180deg)' : 'none' }}>
-                            <path d="M6 9l6 6 6-6"/>
-                          </svg>
-                        </button>
+                        </div>
 
-                        {/* Expanded: top 1 pick per category + "X more" */}
-                        {isExpanded && (
-                          <div className="border-t-2 border-orange-100 p-3 space-y-1.5">
-                            {catKeys.length === 0 ? (
-                              <p className="text-xs text-muted text-center py-2">Nema pronađenih mesta u ovoj zoni</p>
-                            ) : catKeys.map(cat => {
-                              const style = POI_STYLE[cat] ?? POI_STYLE.stop
-                              const items = sug.byCategory[cat]
-                              const catKey = `${globalIdx}-${cat}`
-                              const showAll = expandedCategory[catKey]
-                              const displayed = showAll ? items : items.slice(0, 1)
-
-                              return (
-                                <div key={cat}>
-                                  {displayed.map((poi, pi) => (
-                                    <div key={poi.id ?? pi} className={`flex items-center gap-2 p-2 border ${style.border} bg-white rounded-xl`}>
-                                      <span className="text-base shrink-0">{style.emoji}</span>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-semibold text-text truncate">{poi.name}</p>
-                                        <p className="text-[10px] text-muted">{style.label}</p>
-                                      </div>
-                                      <motion.button
-                                        whileTap={{ scale: 0.85 }}
-                                        onClick={() => onAddStop(poi)}
-                                        className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm shadow-sm hover:opacity-80 transition-opacity cursor-pointer shrink-0"
-                                      >
-                                        +
-                                      </motion.button>
-                                    </div>
-                                  ))}
-                                  {items.length > 1 && (
-                                    <button
-                                      onClick={() => setExpandedCategory(prev => ({ ...prev, [catKey]: !prev[catKey] }))}
-                                      className="ml-2 text-[10px] font-bold text-primary hover:underline cursor-pointer"
-                                    >
-                                      {showAll ? '▲ Sakrij' : `+ još ${items.length - 1} ${style.label.toLowerCase()}`}
-                                    </button>
-                                  )}
+                        {/* Top picks */}
+                        <div className="px-3 py-2 space-y-1.5">
+                          {sug.picks.length === 0 ? (
+                            <p className="text-xs text-muted text-center py-3">Nema pronađenih mesta u blizini</p>
+                          ) : sug.picks.map(({ slot, poi }) => {
+                            const style = POI_STYLE[poi.category] ?? POI_STYLE.stop
+                            const alreadyAdded = addedNames.has(poi.name)
+                            return (
+                              <div key={poi.id} className={`flex items-center gap-2.5 p-2.5 rounded-xl border-2 ${style.border} bg-white`}>
+                                <span className="text-lg shrink-0">{style.emoji}</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-bold text-text truncate">{poi.name}</p>
+                                  <p className="text-[10px] text-muted">{style.label}</p>
                                 </div>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </div>
+                                <motion.button
+                                  whileTap={{ scale: 0.82 }}
+                                  onClick={() => onAddStop(poi)}
+                                  disabled={alreadyAdded}
+                                  className={`min-w-[28px] h-7 px-2 rounded-full flex items-center justify-center font-bold text-sm transition-all cursor-pointer shrink-0 ${
+                                    alreadyAdded
+                                      ? 'bg-success/15 text-success'
+                                      : 'bg-primary text-white shadow-[0_2px_0_rgba(249,115,22,0.35)] hover:opacity-80'
+                                  }`}
+                                >
+                                  {alreadyAdded ? (
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>
+                                  ) : '+'}
+                                </motion.button>
+                              </div>
+                            )
+                          })}
+                        </div>
+
+                        {/* Add city as waypoint */}
+                        <div className="px-3 pb-3">
+                          <motion.button
+                            whileTap={{ scale: 0.97 }}
+                            onClick={() => onAddStop({ id: `city-${sug.lat}-${sug.lng}`, name: sug.cityName, lat: sug.lat, lng: sug.lng, type: 'stop', category: 'stop' })}
+                            disabled={cityAlreadyAdded}
+                            className={`w-full py-2.5 border-2 text-xs font-bold rounded-xl transition-colors cursor-pointer ${
+                              cityAlreadyAdded
+                                ? 'border-success/30 bg-success/10 text-success'
+                                : 'border-primary/25 bg-primary/5 hover:bg-primary/10 text-primary'
+                            }`}
+                          >
+                            {cityAlreadyAdded ? `✓ ${sug.cityName} dodat` : `+ Dodaj ${sug.cityName} kao pauzu`}
+                          </motion.button>
+                        </div>
+                      </motion.div>
                     )
                   })}
 
-                  {/* Give me more button */}
+                  {/* Show different */}
                   {suggestions.length > wantedStops && (
-                    <motion.button
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => {
-                        setSuggPage(p => (p + 1) % Math.ceil(suggestions.length / wantedStops))
-                        setExpandedSuggestion(null)
-                      }}
+                    <button
+                      onClick={() => setSuggPage(p => (p + 1) % Math.ceil(suggestions.length / wantedStops))}
                       className="w-full py-3 border-2 border-dashed border-orange-200 rounded-2xl text-xs font-bold text-primary hover:bg-orange-50 transition-colors cursor-pointer flex items-center justify-center gap-2"
                     >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 013.51 15"/>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M1 4v6h6M23 20v-6h-6"/>
+                        <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 0 1 3.51 15"/>
                       </svg>
-                      Daj mi još {wantedStops} pauza
-                    </motion.button>
+                      Pokaži drugačije
+                    </button>
                   )}
-                </div>
+                </>
               )}
             </motion.div>
           )}

@@ -12,7 +12,7 @@ export default function Welcome() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="h-screen relative overflow-hidden flex flex-col"
+      className="h-dvh relative overflow-hidden flex flex-col"
       style={{
         background: 'linear-gradient(150deg, #F97316 0%, #FDBA74 35%, #38BDF8 70%, #7DD3FC 100%)',
       }}
