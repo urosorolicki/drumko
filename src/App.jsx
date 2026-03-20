@@ -9,6 +9,8 @@ import Auth from './pages/Auth'
 import MyTrips from './pages/MyTrips'
 import CreateTrip from './pages/CreateTrip'
 import TripDetail from './pages/TripDetail'
+import Support from './pages/Support'
+import Privacy from './pages/Privacy'
 
 export default function App() {
   const location = useLocation()
@@ -38,6 +40,8 @@ export default function App() {
         <Route path="/trips/new" element={<CreateTrip />} />
         <Route path="/trips/:id/edit" element={<AuthGuard><CreateTrip /></AuthGuard>} />
         <Route path="/trips/:id" element={<AuthGuard><TripDetail /></AuthGuard>} />
+        <Route path="/support" element={<Support />} />
+        <Route path="/privacy" element={<Privacy />} />
       </Routes>
     </AnimatePresence>
   )

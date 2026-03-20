@@ -162,7 +162,6 @@ export default function TripDetail() {
             <TabBudget
               key="budget"
               trip={trip}
-              budgetSummary={budgetSummary}
               addExpense={addExpense}
               removeExpense={removeExpense}
             />
@@ -764,13 +763,44 @@ function distributeTotal(total, currentCats) {
 /* ============================================================
    TAB: Budget
    ============================================================ */
-function TabBudget({ trip, budgetSummary, addExpense, removeExpense }) {
+function TabBudget({ trip, addExpense, removeExpense }) {
   const updateBudget = useTripStore(s => s.updateBudget)
   const { t } = useTranslation()
   const [newExpense, setNewExpense] = useState({
     name: '', amount: '', category: 'food',
     date: new Date().toISOString().slice(0, 10),
   })
+
+  const cur = trip.budget.currency || 'RSD'
+  const totalBudget = trip.budget.total || 0
+  const expenses = trip.budget.expenses || []
+  const totalSpent = expenses.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0)
+  const remaining = totalBudget - totalSpent
+  const pctUsed = totalBudget > 0 ? Math.min(100, (totalSpent / totalBudget) * 100) : 0
+
+  // Per-person & per-day stats
+  const travelers = (trip.adults || 1) + (trip.children || 0)
+  const days = calculateTripDays(trip.startDate, trip.endDate)
+  const perPerson = travelers > 0 && totalBudget > 0 ? totalBudget / travelers : 0
+  const perDay = days > 0 && totalBudget > 0 ? totalBudget / days : 0
+
+  // Days elapsed since trip start (for avg daily spend)
+  const today = new Date()
+  const startDate = trip.startDate ? new Date(trip.startDate + 'T00:00:00') : null
+  const daysElapsed = startDate
+    ? Math.min(Math.max(Math.ceil((today - startDate) / 86400000), 1), days || 1)
+    : null
+  const avgPerDay = daysElapsed && totalSpent > 0 ? totalSpent / daysElapsed : 0
+  const projected = avgPerDay > 0 && days > 0 ? avgPerDay * days : 0
+
+  // Spending by category (actual from expenses)
+  const catSpent = {}
+  expenses.forEach(e => {
+    const k = e.category || 'other'
+    catSpent[k] = (catSpent[k] || 0) + (parseFloat(e.amount) || 0)
+  })
+
+  const totalFromCats = Object.values(trip.budget.categories || {}).reduce((a, b) => a + b, 0)
 
   function handleTotalChange(rawValue) {
     const total = parseFloat(rawValue) || 0
@@ -797,80 +827,134 @@ function TabBudget({ trip, budgetSummary, addExpense, removeExpense }) {
     setNewExpense(prev => ({ ...prev, name: '', amount: '' }))
   }
 
-  const totalFromCats = Object.values(trip.budget.categories || {}).reduce((a, b) => a + b, 0)
+  function catLabel(key) {
+    const ck = key === 'fuel' ? 'catFuel' : key === 'accommodation' ? 'catAccomm' : key === 'food' ? 'catFood' : key === 'activities' ? 'catActivities' : 'catOther'
+    return t(ck)
+  }
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
-      className="space-y-5"
+      className="space-y-4 max-w-2xl mx-auto"
     >
-      {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-surface border border-border rounded-xl p-4 text-center">
-          <p className="text-xs font-medium text-muted mb-1">{t('budget')}</p>
-          <p className="text-base font-bold text-text">{formatCurrency(budgetSummary.totalBudget, trip.budget.currency)}</p>
+      {/* ── Total budget input ── */}
+      <div className="bg-surface border-2 border-primary/30 rounded-2xl p-4 sm:p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="text-sm font-bold text-text">{t('totalBudget')}</p>
+            <p className="text-xs text-muted">{t('budgetHint')}</p>
+          </div>
+          <span className="text-xs font-semibold text-muted bg-border px-2 py-1 rounded-lg">{cur}</span>
         </div>
-        <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-center">
-          <p className="text-xs font-medium text-muted mb-1">{t('spent')}</p>
-          <p className="text-base font-bold text-primary">{formatCurrency(budgetSummary.totalSpent, trip.budget.currency)}</p>
-        </div>
-        <div className={`border rounded-xl p-4 text-center ${budgetSummary.remaining >= 0 ? 'bg-success/5 border-success/20' : 'bg-danger/5 border-danger/20'}`}>
-          <p className="text-xs font-medium text-muted mb-1">{t('remaining')}</p>
-          <p className={`text-base font-bold ${budgetSummary.remaining >= 0 ? 'text-success' : 'text-danger'}`}>
-            {formatCurrency(budgetSummary.remaining, trip.budget.currency)}
-          </p>
-        </div>
+        <input
+          type="number"
+          value={trip.budget.total || ''}
+          onChange={e => handleTotalChange(e.target.value)}
+          className="w-full px-4 py-3 text-2xl font-extrabold border-2 border-primary/40 rounded-xl bg-background text-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
+          placeholder="0"
+        />
+        {/* Overall progress bar */}
+        {totalBudget > 0 && (
+          <div className="mt-3">
+            <div className="flex justify-between text-xs text-muted mb-1">
+              <span>{Math.round(pctUsed)}% potrošeno</span>
+              <span className={remaining >= 0 ? 'text-success font-semibold' : 'text-danger font-semibold'}>
+                {remaining >= 0 ? 'Ostalo: ' : 'Prekoračeno: '}{formatCurrency(Math.abs(remaining), cur)}
+              </span>
+            </div>
+            <div className="h-3 bg-border rounded-full overflow-hidden">
+              <motion.div
+                className="h-full rounded-full"
+                style={{ background: pctUsed > 90 ? '#EF4444' : pctUsed > 70 ? '#F97316' : '#22C55E' }}
+                animate={{ width: `${pctUsed}%` }}
+                transition={{ duration: 0.6, ease: 'easeOut' }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Total budget — auto-allocates on change */}
-      <div className="bg-surface border-2 border-primary/30 rounded-2xl p-5">
-        <label className="block text-sm font-semibold text-text mb-0.5">{t('totalBudget')}</label>
-        <p className="text-xs text-muted mb-3">{t('budgetHint')}</p>
-        <div className="flex items-center gap-3">
-          <span className="text-xl font-bold text-muted">{trip.budget.currency === 'RSD' ? 'din.' : '€'}</span>
-          <input
-            type="number"
-            value={trip.budget.total || ''}
-            onChange={e => handleTotalChange(e.target.value)}
-            className="flex-1 px-4 py-3 text-2xl font-extrabold border-2 border-primary/40 rounded-xl bg-background text-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
-            placeholder="0"
-          />
+      {/* ── Summary stats ── */}
+      {totalBudget > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-surface border border-border rounded-xl p-3 text-center">
+            <p className="text-[11px] font-medium text-muted mb-1">{t('spent')}</p>
+            <p className="text-sm font-bold text-primary leading-tight">{formatCurrency(totalSpent, cur)}</p>
+          </div>
+          <div className={`border rounded-xl p-3 text-center ${remaining >= 0 ? 'bg-success/5 border-success/20' : 'bg-danger/5 border-danger/20'}`}>
+            <p className="text-[11px] font-medium text-muted mb-1">{t('remaining')}</p>
+            <p className={`text-sm font-bold leading-tight ${remaining >= 0 ? 'text-success' : 'text-danger'}`}>
+              {formatCurrency(remaining, cur)}
+            </p>
+          </div>
+          {perPerson > 0 && (
+            <div className="bg-surface border border-border rounded-xl p-3 text-center">
+              <p className="text-[11px] font-medium text-muted mb-1">Po osobi</p>
+              <p className="text-sm font-bold text-text leading-tight">{formatCurrency(perPerson, cur)}</p>
+            </div>
+          )}
+          {perDay > 0 && (
+            <div className="bg-surface border border-border rounded-xl p-3 text-center">
+              <p className="text-[11px] font-medium text-muted mb-1">Po danu</p>
+              <p className="text-sm font-bold text-text leading-tight">{formatCurrency(perDay, cur)}</p>
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
-      {/* Category allocation — editable */}
-      <div className="bg-surface border border-border rounded-2xl p-5">
-        <h3 className="text-sm font-semibold text-text mb-1">Allocation</h3>
-        <p className="text-xs text-muted mb-4">{t('budgetHint')}</p>
-        <div className="space-y-4">
-          {Object.entries(trip.budget.categories || {}).map(([key, value]) => {
+      {/* ── Spending projections (only if trip started and has expenses) ── */}
+      {avgPerDay > 0 && days > 0 && (
+        <div className="bg-surface border border-border rounded-2xl p-4 sm:p-5">
+          <p className="text-sm font-bold text-text mb-3">Prognoza</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-background rounded-xl p-3">
+              <p className="text-[11px] text-muted mb-0.5">Dnevni prosek</p>
+              <p className="text-sm font-bold text-text">{formatCurrency(avgPerDay, cur)}</p>
+            </div>
+            <div className={`rounded-xl p-3 ${projected > totalBudget ? 'bg-danger/5' : 'bg-success/5'}`}>
+              <p className="text-[11px] text-muted mb-0.5">Očekivano ukupno</p>
+              <p className={`text-sm font-bold ${projected > totalBudget ? 'text-danger' : 'text-success'}`}>
+                {formatCurrency(projected, cur)}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Category breakdown ── */}
+      <div className="bg-surface border border-border rounded-2xl p-4 sm:p-5">
+        <p className="text-sm font-bold text-text mb-4">Po kategorijama</p>
+        <div className="space-y-3">
+          {Object.entries(trip.budget.categories || {}).map(([key, budgeted]) => {
             const meta = CAT_META[key]
-            const catKey = key === 'fuel' ? 'catFuel' : key === 'accommodation' ? 'catAccomm' : key === 'food' ? 'catFood' : key === 'activities' ? 'catActivities' : 'catOther'
-            const pct = totalFromCats > 0 ? (value / totalFromCats) * 100 : 0
+            const spent = catSpent[key] || 0
+            const pct = budgeted > 0 ? Math.min(100, (spent / budgeted) * 100) : 0
+            const overBudget = spent > budgeted && budgeted > 0
             return (
               <div key={key}>
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="text-lg">{meta?.emoji}</span>
-                  <div className="flex-1">
-                    <span className="text-sm font-medium text-text">{t(catKey)}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-base shrink-0">{meta?.emoji}</span>
+                  <span className="text-sm font-medium text-text flex-1">{catLabel(key)}</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className={`text-xs font-bold ${overBudget ? 'text-danger' : 'text-text'}`}>
+                      {formatCurrency(spent, cur)}
+                    </span>
+                    <span className="text-xs text-muted">/</span>
                     <input
                       type="number"
-                      value={value || ''}
+                      value={budgeted || ''}
                       onChange={e => handleCategoryChange(key, e.target.value)}
-                      className="w-28 px-3 py-1.5 border border-border rounded-lg bg-background text-text text-sm font-semibold text-right focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      className="w-20 px-2 py-1 border border-border rounded-lg bg-background text-xs font-semibold text-right text-text focus:outline-none focus:ring-1 focus:ring-primary/40"
                       placeholder="0"
                     />
-                    <span className="text-xs text-muted w-9 text-right">{Math.round(pct)}%</span>
                   </div>
                 </div>
-                <div className="h-1.5 bg-border rounded-full overflow-hidden ml-8">
+                <div className="h-2 bg-border rounded-full overflow-hidden ml-7">
                   <motion.div
                     className="h-full rounded-full"
-                    style={{ backgroundColor: meta?.color }}
+                    style={{ backgroundColor: overBudget ? '#EF4444' : meta?.color }}
                     animate={{ width: `${pct}%` }}
                     transition={{ duration: 0.4 }}
                   />
@@ -880,80 +964,100 @@ function TabBudget({ trip, budgetSummary, addExpense, removeExpense }) {
           })}
         </div>
         {/* Stacked bar */}
-        <div className="h-6 rounded-xl overflow-hidden flex bg-border mt-5">
-          {Object.entries(trip.budget.categories || {}).map(([key, value]) => {
-            const pct = totalFromCats > 0 ? (value / totalFromCats) * 100 : 0
-            if (pct <= 0) return null
-            return (
-              <motion.div key={key} className="h-full" style={{ backgroundColor: CAT_META[key]?.color }}
-                animate={{ width: `${pct}%` }} transition={{ duration: 0.5 }} />
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Log expense */}
-      <div className="bg-surface border border-border rounded-2xl p-5">
-        <h3 className="text-sm font-semibold text-text mb-1">{t('logExpense')}</h3>
-        <div className="grid grid-cols-2 gap-2 mb-2 mt-3">
-          <input type="text" value={newExpense.name}
-            onChange={e => setNewExpense(p => ({ ...p, name: e.target.value }))}
-            placeholder={t('description')}
-            className="px-3 py-2 border border-border rounded-lg bg-background text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/40" />
-          <input type="number" value={newExpense.amount}
-            onChange={e => setNewExpense(p => ({ ...p, amount: e.target.value }))}
-            placeholder={`Iznos (${trip.budget.currency})`}
-            className="px-3 py-2 border border-border rounded-lg bg-background text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/40" />
-        </div>
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <select value={newExpense.category}
-            onChange={e => setNewExpense(p => ({ ...p, category: e.target.value }))}
-            className="px-3 py-2 border border-border rounded-lg bg-background text-sm text-text">
-            {Object.entries(CAT_META).map(([k, m]) => {
-              const ck = k === 'fuel' ? 'catFuel' : k === 'accommodation' ? 'catAccomm' : k === 'food' ? 'catFood' : k === 'activities' ? 'catActivities' : 'catOther'
-              return <option key={k} value={k}>{m.emoji} {t(ck)}</option>
+        {totalFromCats > 0 && (
+          <div className="h-5 rounded-xl overflow-hidden flex bg-border mt-4">
+            {Object.entries(trip.budget.categories || {}).map(([key, value]) => {
+              const pct = totalFromCats > 0 ? (value / totalFromCats) * 100 : 0
+              if (pct <= 0) return null
+              return (
+                <motion.div key={key} className="h-full" style={{ backgroundColor: CAT_META[key]?.color }}
+                  animate={{ width: `${pct}%` }} transition={{ duration: 0.5 }} />
+              )
             })}
-          </select>
-          <input type="date" value={newExpense.date}
-            onChange={e => setNewExpense(p => ({ ...p, date: e.target.value }))}
-            className="px-3 py-2 border border-border rounded-lg bg-background text-sm text-text" />
-        </div>
-        <button onClick={handleAddExpense}
-          className="w-full py-2.5 bg-primary text-white font-semibold rounded-xl text-sm hover:bg-primary-dark transition-colors">
-          {t('addExpense')}
-        </button>
+          </div>
+        )}
       </div>
 
-      {/* Expense list */}
-      {trip.budget.expenses?.length > 0 && (
-        <div className="bg-surface border border-border rounded-2xl p-5">
-          <h3 className="text-sm font-semibold text-text mb-3">
-            {t('expenses')} <span className="text-muted font-normal">({trip.budget.expenses.length})</span>
-          </h3>
-          <div className="space-y-2">
-            {[...trip.budget.expenses].reverse().map(expense => (
-              <div key={expense.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">{CAT_META[expense.category]?.emoji ?? '📦'}</span>
-                  <div>
-                    <p className="text-sm font-medium text-text">{expense.name}</p>
-                    <p className="text-xs text-muted">
-                      {(() => { const ck = expense.category === 'fuel' ? 'catFuel' : expense.category === 'accommodation' ? 'catAccomm' : expense.category === 'food' ? 'catFood' : expense.category === 'activities' ? 'catActivities' : 'catOther'; return t(ck) })()}
-                      {expense.date && ` · ${new Date(expense.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
-                    </p>
-                  </div>
+      {/* ── Log expense ── */}
+      <div className="bg-surface border border-border rounded-2xl p-4 sm:p-5">
+        <p className="text-sm font-bold text-text mb-3">Dodaj trošak</p>
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="text"
+              value={newExpense.name}
+              onChange={e => setNewExpense(p => ({ ...p, name: e.target.value }))}
+              onKeyDown={e => e.key === 'Enter' && handleAddExpense()}
+              placeholder="Opis"
+              className="col-span-2 sm:col-span-1 px-3 py-2.5 border border-border rounded-xl bg-background text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+            <input
+              type="number"
+              value={newExpense.amount}
+              onChange={e => setNewExpense(p => ({ ...p, amount: e.target.value }))}
+              onKeyDown={e => e.key === 'Enter' && handleAddExpense()}
+              placeholder={`Iznos (${cur})`}
+              className="col-span-2 sm:col-span-1 px-3 py-2.5 border border-border rounded-xl bg-background text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={newExpense.category}
+              onChange={e => setNewExpense(p => ({ ...p, category: e.target.value }))}
+              className="px-3 py-2.5 border border-border rounded-xl bg-background text-sm text-text"
+            >
+              {Object.entries(CAT_META).map(([k, m]) => (
+                <option key={k} value={k}>{m.emoji} {catLabel(k)}</option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={newExpense.date}
+              onChange={e => setNewExpense(p => ({ ...p, date: e.target.value }))}
+              className="px-3 py-2.5 border border-border rounded-xl bg-background text-sm text-text"
+            />
+          </div>
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={handleAddExpense}
+            className="w-full py-3 bg-primary text-white font-bold rounded-xl text-sm hover:bg-primary-dark transition-colors cursor-pointer"
+          >
+            + Dodaj trošak
+          </motion.button>
+        </div>
+      </div>
+
+      {/* ── Expense list ── */}
+      {expenses.length > 0 && (
+        <div className="bg-surface border border-border rounded-2xl p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-bold text-text">
+              Troškovi <span className="text-muted font-normal">({expenses.length})</span>
+            </p>
+            <span className="text-sm font-bold text-primary">{formatCurrency(totalSpent, cur)}</span>
+          </div>
+          <div className="space-y-1">
+            {[...expenses].reverse().map(expense => (
+              <div key={expense.id} className="flex items-center gap-3 py-2.5 border-b border-border last:border-0">
+                <span className="text-lg shrink-0">{CAT_META[expense.category]?.emoji ?? '📦'}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-text truncate">{expense.name}</p>
+                  <p className="text-xs text-muted">
+                    {catLabel(expense.category || 'other')}
+                    {expense.date && ` · ${new Date(expense.date).toLocaleDateString('sr-Latn', { day: 'numeric', month: 'short' })}`}
+                  </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold text-text">
-                    {formatCurrency(expense.amount, trip.budget.currency)}
-                  </span>
-                  <button onClick={() => removeExpense(trip.id, expense.id)}
-                    className="text-muted hover:text-danger transition-colors">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/>
-                    </svg>
-                  </button>
-                </div>
+                <span className="text-sm font-bold text-text shrink-0">
+                  {formatCurrency(expense.amount, cur)}
+                </span>
+                <button
+                  onClick={() => removeExpense(trip.id, expense.id)}
+                  className="text-muted hover:text-danger transition-colors p-1 shrink-0 cursor-pointer"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/>
+                  </svg>
+                </button>
               </div>
             ))}
           </div>

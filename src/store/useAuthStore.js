@@ -39,6 +39,13 @@ const useAuthStore = create((set) => ({
     await supabase.auth.signOut()
     set({ session: null, user: null })
   },
+
+  deleteAccount: async () => {
+    const { error } = await supabase.rpc('delete_user')
+    if (error) throw error
+    await supabase.auth.signOut()
+    set({ session: null, user: null })
+  },
 }))
 
 export default useAuthStore

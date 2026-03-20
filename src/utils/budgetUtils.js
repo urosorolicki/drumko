@@ -134,7 +134,7 @@ export function getBudgetSummary(budget) {
     };
   }
 
-  const totalBudget = budget.totalBudget || 0;
+  const totalBudget = budget.total || budget.totalBudget || 0;
   const expenses = budget.expenses || [];
 
   const categoryTotals = {};

@@ -111,31 +111,34 @@ function TripCard({ trip, index, onDelete }) {
       >
         {/* Gradient header */}
         <div
-          className="h-16 relative flex items-end px-4 pb-2"
+          className="h-16 relative flex flex-col justify-between px-4 pt-2 pb-2"
           style={{ background: `linear-gradient(135deg, ${gradient.from}, ${gradient.to})` }}
         >
-          <div className="flex items-end justify-between w-full">
-            <div className="flex items-center gap-1.5">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+          {/* Top row: route → destination + delete */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" className="shrink-0">
                 <path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
               </svg>
-              <span className="text-white/90 text-xs font-semibold truncate max-w-[160px]">
+              <span className="text-white/90 text-xs font-semibold truncate">
                 {trip.startCity?.name?.split(',')[0]} → {trip.endCity?.name?.split(',')[0]}
               </span>
             </div>
-            <TripStatusBadge startDate={trip.startDate} endDate={trip.endDate} />
+            <button
+              onClick={(e) => { e.stopPropagation(); setConfirmDelete(true) }}
+              className="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg bg-black/20 hover:bg-black/35 transition-colors cursor-pointer"
+              aria-label="Obriši putovanje"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14"/>
+              </svg>
+            </button>
           </div>
 
-          {/* Delete button */}
-          <button
-            onClick={(e) => { e.stopPropagation(); setConfirmDelete(true) }}
-            className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-lg bg-black/20 hover:bg-black/35 transition-colors cursor-pointer"
-            aria-label="Obriši putovanje"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-              <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14"/>
-            </svg>
-          </button>
+          {/* Bottom row: status badge */}
+          <div>
+            <TripStatusBadge startDate={trip.startDate} endDate={trip.endDate} />
+          </div>
         </div>
 
         {/* Card body */}
@@ -209,12 +212,105 @@ function TripCard({ trip, index, onDelete }) {
   )
 }
 
+function DeleteAccountModal({ onClose }) {
+  const deleteAccount = useAuthStore(s => s.deleteAccount)
+  const clearTrips = useTripStore(s => s.clearTrips)
+  const navigate = useNavigate()
+  const [confirm, setConfirm] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function handleDelete() {
+    setLoading(true)
+    setError(null)
+    try {
+      await deleteAccount()
+      clearTrips()
+      navigate('/')
+    } catch (e) {
+      setError('Brisanje nije uspelo. Pokušaj ponovo ili kontaktiraj podršku.')
+      setLoading(false)
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.92 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+        className="bg-surface rounded-2xl shadow-2xl w-full max-w-sm p-6"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="w-12 h-12 bg-danger/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2">
+            <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/>
+          </svg>
+        </div>
+        <h2 className="text-lg font-bold text-text text-center mb-1">Obriši nalog</h2>
+        <p className="text-sm text-muted text-center mb-5">
+          Ovo će trajno obrisati <strong className="text-text">sva tvoja putovanja</strong> i nalog.
+          Ova radnja se <strong className="text-danger">ne može poništiti</strong>.
+        </p>
+
+        <div className="mb-4">
+          <label className="block text-xs font-semibold text-muted mb-1.5">
+            Upiši <span className="text-danger font-bold">OBRIŠI</span> za potvrdu
+          </label>
+          <input
+            type="text"
+            value={confirm}
+            onChange={e => setConfirm(e.target.value)}
+            placeholder="OBRIŠI"
+            className="w-full px-4 py-2.5 border-2 border-border rounded-xl bg-background text-sm text-text focus:outline-none focus:border-danger/50 transition-colors"
+          />
+        </div>
+
+        {error && (
+          <p className="text-xs text-danger font-semibold mb-3 text-center">{error}</p>
+        )}
+
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border-2 border-border text-sm font-bold text-muted hover:bg-background transition-colors cursor-pointer"
+          >
+            Odustani
+          </button>
+          <motion.button
+            whileTap={{ scale: 0.96 }}
+            onClick={handleDelete}
+            disabled={confirm !== 'OBRIŠI' || loading}
+            className="flex-1 py-2.5 rounded-xl bg-danger text-white text-sm font-bold shadow-[0_3px_0_rgba(239,68,68,0.4)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-opacity flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            ) : null}
+            Obriši nalog
+          </motion.button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 export default function MyTrips() {
   const trips = useTripStore(state => state.trips)
   const deleteTrip = useTripStore(state => state.deleteTrip)
   const user = useAuthStore(s => s.user)
   const signOut = useAuthStore(s => s.signOut)
   const { t } = useTranslation()
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false)
 
   return (
     <motion.div
@@ -320,7 +416,39 @@ export default function MyTrips() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Account section */}
+      {user && (
+        <div className="pb-8">
+          <div className="border-t border-border pt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-muted">Prijavljeni kao</p>
+              <p className="text-sm font-bold text-text">{user.email}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => signOut()}
+                className="px-4 py-2 rounded-xl border-2 border-border text-sm font-semibold text-muted hover:bg-background transition-colors cursor-pointer"
+              >
+                Odjavi se
+              </button>
+              <button
+                onClick={() => setShowDeleteAccount(true)}
+                className="px-4 py-2 rounded-xl border-2 border-danger/30 text-sm font-semibold text-danger hover:bg-danger/5 transition-colors cursor-pointer"
+              >
+                Obriši nalog
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </main>
+
+      <AnimatePresence>
+        {showDeleteAccount && (
+          <DeleteAccountModal onClose={() => setShowDeleteAccount(false)} />
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }

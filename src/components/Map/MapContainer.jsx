@@ -53,12 +53,14 @@ function MapClickHandler({ onAddStop, enabled }) {
     setLoading(true)
     let name = `${pending.lat.toFixed(4)}, ${pending.lng.toFixed(4)}`
     try {
+      const apiKey = import.meta.env.VITE_GEOAPIFY_API_KEY || ''
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${pending.lat}&lon=${pending.lng}&format=json`,
-        { headers: { 'Accept-Language': 'sr' } }
+        `https://api.geoapify.com/v1/geocode/reverse?lat=${pending.lat}&lon=${pending.lng}&lang=sr&apiKey=${apiKey}`
       )
       const data = await res.json()
-      name = data.display_name?.split(',').slice(0, 2).join(', ') || name
+      const p = data?.features?.[0]?.properties || {}
+      const locality = p.city || p.town || p.village || p.municipality || p.name
+      name = [locality, p.country].filter(Boolean).join(', ') || p.formatted?.split(',').slice(0, 2).join(', ') || name
     } catch (_) { /* use coords as fallback */ }
 
     onAddStop({ lat: pending.lat, lng: pending.lng, name, category: 'stop' })

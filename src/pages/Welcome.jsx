@@ -140,6 +140,15 @@ export default function Welcome() {
           </motion.div>
         </motion.div>
 
+        {/* Footer links */}
+        <p className="text-white/50 text-xs flex items-center gap-2 flex-wrap justify-center">
+          <Link to="/support" className="hover:text-white/80 transition-colors underline underline-offset-2">Podrška</Link>
+          <span>·</span>
+          <Link to="/privacy" className="hover:text-white/80 transition-colors underline underline-offset-2">Privatnost</Link>
+          <span>·</span>
+          <span>© {new Date().getFullYear()} Drumko</span>
+        </p>
+
       </div>
     </motion.div>
   )
