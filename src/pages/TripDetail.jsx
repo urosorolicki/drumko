@@ -780,31 +780,33 @@ function TabPacking({ trip, toggleItem, updateTrip }) {
       </div>
 
       {/* Add item row */}
-      <div className="flex gap-2 mb-5">
+      <div className="mb-5 space-y-2">
         <select
           value={newCategory}
           onChange={e => setNewCategory(e.target.value)}
-          className="px-3 py-2.5 border border-border rounded-xl bg-surface text-text text-sm"
+          className="w-full px-3 py-2.5 border border-border rounded-xl bg-surface text-text text-sm"
         >
           {[...categories, 'Ostalo'].filter((v, i, a) => a.indexOf(v) === i).map(c => (
             <option key={c} value={c}>{getCatStyle(c).emoji} {c}</option>
           ))}
         </select>
-        <input
-          type="text"
-          value={newItem}
-          onChange={e => setNewItem(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && addItem()}
-          placeholder="Add something to pack..."
-          className="flex-1 px-4 py-2.5 border border-border rounded-xl bg-surface text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/40"
-        />
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onClick={addItem}
-          className="px-4 py-2.5 bg-primary text-white font-bold rounded-xl text-sm hover:bg-primary-dark transition-colors"
-        >
-          +
-        </motion.button>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={newItem}
+            onChange={e => setNewItem(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addItem()}
+            placeholder="Dodaj stvar za pakovanje..."
+            className="flex-1 px-4 py-2.5 border border-border rounded-xl bg-surface text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/40"
+          />
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={addItem}
+            className="px-5 py-2.5 bg-primary text-white font-bold rounded-xl text-sm hover:bg-primary-dark transition-colors shrink-0"
+          >
+            +
+          </motion.button>
+        </div>
       </div>
 
       {/* Categories */}
@@ -1112,8 +1114,8 @@ function TabBudget({ trip, addExpense, removeExpense }) {
               <div key={key}>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-base shrink-0">{meta?.emoji}</span>
-                  <span className="text-sm font-medium text-text flex-1">{catLabel(key)}</span>
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-sm font-medium text-text flex-1 min-w-0 truncate">{catLabel(key)}</span>
+                  <div className="flex items-center gap-1 shrink-0">
                     <span className={`text-xs font-bold ${overBudget ? 'text-danger' : 'text-text'}`}>
                       {formatCurrency(spent, cur)}
                     </span>
@@ -1122,7 +1124,7 @@ function TabBudget({ trip, addExpense, removeExpense }) {
                       type="number"
                       value={budgeted || ''}
                       onChange={e => handleCategoryChange(key, e.target.value)}
-                      className="w-20 px-2 py-1 border border-border rounded-lg bg-background text-xs font-semibold text-right text-text focus:outline-none focus:ring-1 focus:ring-primary/40"
+                      className="w-16 px-1.5 py-1 border border-border rounded-lg bg-background text-xs font-semibold text-right text-text focus:outline-none focus:ring-1 focus:ring-primary/40"
                       placeholder="0"
                     />
                   </div>
@@ -1158,34 +1160,23 @@ function TabBudget({ trip, addExpense, removeExpense }) {
       <div className="bg-surface border border-border rounded-2xl p-4 sm:p-5">
         <p className="text-sm font-bold text-text mb-3">Dodaj trošak</p>
         <div className="space-y-2">
+          <input
+            type="text"
+            value={newExpense.name}
+            onChange={e => setNewExpense(p => ({ ...p, name: e.target.value }))}
+            onKeyDown={e => e.key === 'Enter' && handleAddExpense()}
+            placeholder="Opis troška"
+            className="w-full px-3 py-2.5 border border-border rounded-xl bg-background text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/40"
+          />
           <div className="grid grid-cols-2 gap-2">
-            <input
-              type="text"
-              value={newExpense.name}
-              onChange={e => setNewExpense(p => ({ ...p, name: e.target.value }))}
-              onKeyDown={e => e.key === 'Enter' && handleAddExpense()}
-              placeholder="Opis"
-              className="col-span-2 sm:col-span-1 px-3 py-2.5 border border-border rounded-xl bg-background text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/40"
-            />
             <input
               type="number"
               value={newExpense.amount}
               onChange={e => setNewExpense(p => ({ ...p, amount: e.target.value }))}
               onKeyDown={e => e.key === 'Enter' && handleAddExpense()}
               placeholder={`Iznos (${cur})`}
-              className="col-span-2 sm:col-span-1 px-3 py-2.5 border border-border rounded-xl bg-background text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/40"
+              className="px-3 py-2.5 border border-border rounded-xl bg-background text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              value={newExpense.category}
-              onChange={e => setNewExpense(p => ({ ...p, category: e.target.value }))}
-              className="px-3 py-2.5 border border-border rounded-xl bg-background text-sm text-text"
-            >
-              {Object.entries(CAT_META).map(([k, m]) => (
-                <option key={k} value={k}>{m.emoji} {catLabel(k)}</option>
-              ))}
-            </select>
             <input
               type="date"
               value={newExpense.date}
@@ -1193,6 +1184,15 @@ function TabBudget({ trip, addExpense, removeExpense }) {
               className="px-3 py-2.5 border border-border rounded-xl bg-background text-sm text-text"
             />
           </div>
+          <select
+            value={newExpense.category}
+            onChange={e => setNewExpense(p => ({ ...p, category: e.target.value }))}
+            className="w-full px-3 py-2.5 border border-border rounded-xl bg-background text-sm text-text"
+          >
+            {Object.entries(CAT_META).map(([k, m]) => (
+              <option key={k} value={k}>{m.emoji} {catLabel(k)}</option>
+            ))}
+          </select>
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={handleAddExpense}
