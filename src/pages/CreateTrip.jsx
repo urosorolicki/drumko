@@ -185,9 +185,9 @@ export default function CreateTrip() {
   // How many stop suggestions the user wants
   const [wantedStops, setWantedStops] = useState(3)
 
-  // Fetch route when start/end cities or stops change
+  // Fetch route as soon as both cities are selected — no need to wait for step 1
   useEffect(() => {
-    if (form.startCity?.lat && form.endCity?.lat && step === 1) {
+    if (form.startCity?.lat && form.endCity?.lat) {
       const waypoints = [
         form.startCity,
         ...form.stops,
@@ -195,7 +195,7 @@ export default function CreateTrip() {
       ]
       fetchRoute(waypoints)
     }
-  }, [form.startCity, form.endCity, form.stops, step])
+  }, [form.startCity, form.endCity, form.stops])
 
   // Update form with route data
   useEffect(() => {
@@ -207,19 +207,19 @@ export default function CreateTrip() {
     }
   }, [routeData])
 
-  // Fetch POIs when route is available — pass ALL category keys
+  // Fetch POIs as soon as route is ready — prefetch in background
   useEffect(() => {
-    if (routeData?.geometry && step === 1) {
+    if (routeData?.geometry) {
       fetchPOIs(routeData.geometry.coordinates, Object.keys(poiCategories))
     }
-  }, [routeData?.geometry, step])
+  }, [routeData?.geometry])
 
-  // Build smart stop suggestions once we have both route AND POIs
+  // Build smart stop suggestions as soon as POIs are ready — no step restriction
   useEffect(() => {
-    if (routeData?.geometry && pois.length > 0 && step === 1) {
+    if (routeData?.geometry && pois.length > 0) {
       buildSuggestions(routeData.geometry.coordinates, pois, routeData.totalDistance, wantedStops)
     }
-  }, [pois, routeData?.geometry, step, wantedStops])
+  }, [pois, routeData?.geometry, wantedStops])
 
   // Generate packing list when moving to step 3
   useEffect(() => {

@@ -15,18 +15,16 @@ function getRoutePointAtKm(coords, targetKm) {
   return { lat: last[1], lng: last[0] }
 }
 
-async function reverseGeocode(lat, lng) {
-  try {
-    const apiKey = import.meta.env.VITE_GEOAPIFY_API_KEY || ''
-    const res = await fetch(
-      `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lng}&apiKey=${apiKey}`
-    )
-    const data = await res.json()
-    const p = data?.features?.[0]?.properties || {}
-    return p.city || p.town || p.village || p.municipality || p.name || p.formatted?.split(',')[0] || '—'
-  } catch {
-    return '—'
-  }
+function nearestCityName(pois, lat, lng, radiusKm = 40) {
+  // Derive a city-like name from nearby POIs — no API call needed
+  const nearby = pois
+    .map(p => ({ ...p, _d: haversineDistance(p.lat, p.lng, lat, lng) }))
+    .filter(p => p._d <= radiusKm)
+    .sort((a, b) => a._d - b._d)
+  if (!nearby.length) return '—'
+  // Strip common suffixes like "McDonald's" → just use first word as area hint
+  const raw = nearby[0].name || '—'
+  return raw.split(/[,\-–]/)[0].trim()
 }
 
 // Ordered by priority — first match per slot wins
@@ -52,7 +50,7 @@ export default function useSmartStops() {
   const [suggestions, setSuggestions] = useState([])
   const [loading, setLoading] = useState(false)
 
-  const buildSuggestions = useCallback(async (routeCoords, pois, totalDistanceKm, requestedCount = 2) => {
+  const buildSuggestions = useCallback((routeCoords, pois, totalDistanceKm, requestedCount = 2) => {
     if (!routeCoords?.length || !totalDistanceKm) return
 
     setLoading(true)
@@ -64,17 +62,13 @@ export default function useSmartStops() {
       Math.round(totalDistanceKm * (i + 1) / (poolSize + 1))
     )
 
-    const results = await Promise.all(
-      kmMarks.map(async (km) => {
-        const point = getRoutePointAtKm(routeCoords, km)
-        const [cityName, picks] = await Promise.all([
-          reverseGeocode(point.lat, point.lng),
-          Promise.resolve(findTopPicks(pois, point)),
-        ])
-        const driveTimeMin = Math.round(km * 60 / 90) // ~90 km/h avg
-        return { km, driveTimeMin, cityName, lat: point.lat, lng: point.lng, picks }
-      })
-    )
+    const results = kmMarks.map((km) => {
+      const point = getRoutePointAtKm(routeCoords, km)
+      const cityName = nearestCityName(pois, point.lat, point.lng)
+      const picks = findTopPicks(pois, point)
+      const driveTimeMin = Math.round(km * 60 / 90) // ~90 km/h avg
+      return { km, driveTimeMin, cityName, lat: point.lat, lng: point.lng, picks }
+    })
 
     setSuggestions(results)
     setLoading(false)
