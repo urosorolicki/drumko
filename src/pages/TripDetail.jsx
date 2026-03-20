@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import useTripStore from '../store/useTripStore'
@@ -9,6 +9,8 @@ import { calculateTripDays, formatCurrency, getBudgetSummary } from '../utils/bu
 import useRouteStats from '../hooks/useRouteStats'
 import { useTranslation } from '../hooks/useTranslation'
 import LanguageToggle from '../components/UI/LanguageToggle'
+import useNominatim from '../hooks/useNominatim'
+import useOSRM from '../hooks/useOSRM'
 
 const TABS = ['overview', 'map', 'stops', 'packing', 'budget']
 
@@ -22,6 +24,8 @@ export default function TripDetail() {
   const updateTrip = useTripStore(s => s.updateTrip)
   const deleteTrip = useTripStore(s => s.deleteTrip)
   const setShared = useTripStore(s => s.setShared)
+  const addStop = useTripStore(s => s.addStop)
+  const removeStop = useTripStore(s => s.removeStop)
   const user = useAuthStore(s => s.user)
   const [showShareModal, setShowShareModal] = useState(false)
   const togglePackingItem = useTripStore(s => s.togglePackingItem)
@@ -147,7 +151,10 @@ export default function TripDetail() {
               trip={trip}
               routeStats={routeStats}
               updateStop={updateStop}
-              updateTrip={updateTrip}
+              updateTrip={(updates) => updateTrip(id, updates, user?.id)}
+              addStop={(stop) => addStop(id, stop)}
+              removeStop={(stopId) => removeStop(id, stopId)}
+              userId={user?.id}
             />
           )}
           {activeTab === 'packing' && (
@@ -413,16 +420,51 @@ function TabMap({ trip, routeStats, updateStop }) {
 /* ============================================================
    TAB: Stops
    ============================================================ */
-function TabStops({ trip, routeStats, updateStop }) {
-  // Build full ordered list: start → intermediate stops → end
+function TabStops({ trip, routeStats, updateStop, updateTrip, addStop, removeStop }) {
+  const [query, setQuery] = useState('')
+  const [showResults, setShowResults] = useState(false)
+  const [recalculating, setRecalculating] = useState(false)
+  const inputRef = useRef(null)
+  const { search, results, loading: searchLoading, clearResults } = useNominatim()
+  const { fetchRoute } = useOSRM()
+
   const allPoints = [
     { ...trip.startCity, id: 'start', isStart: true },
     ...trip.stops,
     { ...trip.endCity, id: 'end', isEnd: true },
   ].filter(p => p && p.lat)
 
-  // stopDistances[i] is the distance FROM point i TO point i+1
   const { stopDistances, stopDurations } = routeStats
+
+  useEffect(() => {
+    const t = setTimeout(() => { if (query.trim().length > 1) search(query) }, 300)
+    return () => clearTimeout(t)
+  }, [query])
+
+  async function recalcRoute(newStops) {
+    const waypoints = [trip.startCity, ...newStops, trip.endCity].filter(p => p?.lat)
+    if (waypoints.length < 2) return
+    setRecalculating(true)
+    const result = await fetchRoute(waypoints)
+    if (result) updateTrip({ route: result })
+    setRecalculating(false)
+  }
+
+  async function handleAddStop(place) {
+    const stop = { lat: place.lat, lng: place.lng || place.lon, name: place.display_name || place.name, category: 'stop' }
+    addStop(stop)
+    const newStops = [...trip.stops, stop]
+    setQuery('')
+    clearResults()
+    setShowResults(false)
+    await recalcRoute(newStops)
+  }
+
+  async function handleRemoveStop(stopId) {
+    removeStop(stopId)
+    const newStops = trip.stops.filter(s => s.id !== stopId)
+    await recalcRoute(newStops)
+  }
 
   return (
     <motion.div
@@ -434,13 +476,11 @@ function TabStops({ trip, routeStats, updateStop }) {
       {allPoints.map((stop, i) => {
         const isStart = stop.isStart
         const isEnd = stop.isEnd
-        // The leg ARRIVING at stop i is segment i-1
         const legDist = stopDistances[i - 1]
         const legDur = stopDurations[i - 1]
 
         return (
           <div key={stop.id || i} className="relative">
-            {/* Driving info connector between stops */}
             {i > 0 && (
               <div className="flex items-center gap-2 py-2 pl-12 text-xs text-muted">
                 <div className="flex items-center gap-1.5">
@@ -460,7 +500,6 @@ function TabStops({ trip, routeStats, updateStop }) {
               'border-border'
             }`}>
               <div className="flex items-start gap-3">
-                {/* Marker badge */}
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
                   isStart ? 'bg-success text-white' :
                   isEnd ? 'bg-secondary text-white' :
@@ -475,36 +514,87 @@ function TabStops({ trip, routeStats, updateStop }) {
                     {isStart && <span className="text-xs bg-success/20 text-success px-2 py-0.5 rounded-full font-medium">Start</span>}
                     {isEnd && <span className="text-xs bg-secondary/20 text-secondary-dark px-2 py-0.5 rounded-full font-medium">Destination</span>}
                   </div>
-
                   <p className="text-xs text-muted mt-0.5 truncate">
                     {stop.name?.split(',').slice(1, 3).join(',').trim()}
                   </p>
-
                   {!isStart && !isEnd && (
                     <textarea
                       value={stop.note || ''}
                       onChange={(e) => updateStop(trip.id, stop.id, { note: e.target.value })}
-                      placeholder="Add notes for this stop..."
+                      placeholder="Beleška za ovu stanicu..."
                       rows={2}
                       className="mt-2 w-full text-sm p-2 border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 bg-background text-text placeholder:text-muted"
                     />
                   )}
                 </div>
+
+                {/* Delete button for intermediate stops */}
+                {!isStart && !isEnd && (
+                  <button
+                    onClick={() => handleRemoveStop(stop.id)}
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-danger/10 text-danger hover:bg-danger/20 transition-colors shrink-0"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
           </div>
         )
       })}
 
-      {allPoints.length === 0 && (
-        <div className="text-center py-12 text-muted">
-          <p className="text-4xl mb-3">🗺️</p>
-          <p className="font-medium">No stops yet</p>
-          <p className="text-sm">Add stops in the route step when editing the trip.</p>
-        </div>
-      )}
+      {/* Add stop inline */}
+      <div className="pt-2">
+        <div className="relative">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={(e) => { setQuery(e.target.value); setShowResults(true) }}
+                onFocus={() => setShowResults(true)}
+                placeholder="Dodaj stanicu..."
+                className="w-full px-4 py-3 border-2 border-dashed border-border rounded-2xl bg-surface text-sm text-text placeholder:text-muted focus:outline-none focus:border-primary transition-colors"
+              />
+              {searchLoading && (
+                <div className="absolute right-3 top-3.5 w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              )}
+            </div>
+          </div>
 
-      {/* Export to navigation apps */}
+          {/* Search results dropdown */}
+          <AnimatePresence>
+            {showResults && results.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="absolute top-full left-0 right-0 mt-1 bg-white border border-border rounded-2xl shadow-lg z-20 overflow-hidden"
+              >
+                {results.slice(0, 5).map((r, i) => (
+                  <button
+                    key={i}
+                    onMouseDown={(e) => { e.preventDefault(); handleAddStop(r) }}
+                    className="w-full text-left px-4 py-3 text-sm hover:bg-surface transition-colors border-b border-border last:border-0"
+                  >
+                    <span className="font-medium text-text">{r.display_name?.split(',')[0]}</span>
+                    <span className="text-muted text-xs ml-1">{r.display_name?.split(',').slice(1, 3).join(',')}</span>
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {recalculating && (
+          <p className="text-xs text-muted mt-2 text-center">Preračunavam rutu...</p>
+        )}
+      </div>
+
+      {/* Navigation */}
       {trip.startCity?.lat && trip.endCity?.lat && (
         <div className="mt-4 pt-4 border-t border-border">
           <p className="text-xs text-muted font-semibold mb-2 uppercase tracking-wide">Navigacija</p>
@@ -513,7 +603,7 @@ function TabStops({ trip, routeStats, updateStop }) {
               href={buildNavUrl('google', trip)}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#4285F4] text-white text-sm font-bold rounded-2xl shadow-[0_4px_0_rgba(0,0,0,0.15)] hover:-translate-y-0.5 hover:shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-all cursor-pointer"
+              className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#4285F4] text-white text-sm font-bold rounded-2xl shadow-[0_4px_0_rgba(0,0,0,0.15)] hover:-translate-y-0.5 transition-all cursor-pointer"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
@@ -524,7 +614,7 @@ function TabStops({ trip, routeStats, updateStop }) {
               href={buildNavUrl('waze', trip)}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#33CCFF] text-white text-sm font-bold rounded-2xl shadow-[0_4px_0_rgba(0,0,0,0.15)] hover:-translate-y-0.5 hover:shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-all cursor-pointer"
+              className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#33CCFF] text-white text-sm font-bold rounded-2xl shadow-[0_4px_0_rgba(0,0,0,0.15)] hover:-translate-y-0.5 transition-all cursor-pointer"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 1.5C6.21 1.5 1.5 6.21 1.5 12S6.21 22.5 12 22.5 22.5 17.79 22.5 12 17.79 1.5 12 1.5zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 13.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
