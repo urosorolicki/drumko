@@ -9,7 +9,7 @@ import useNominatim from '../../hooks/useNominatim'
 export default function SearchBar({ onSelect, placeholder = 'Search location...' }) {
   const [query, setQuery] = useState('')
   const [isOpen, setIsOpen] = useState(false)
-  const { search, results, loading, clearResults } = useNominatim()
+  const { search, results, loading, clearResults } = useNominatim({ featuretype: null })
   const map = useMap()
   const wrapperRef = useRef(null)
 
@@ -37,7 +37,7 @@ export default function SearchBar({ onSelect, placeholder = 'Search location...'
   }
 
   function handleSelect(result) {
-    setQuery(result.name.split(',')[0])
+    setQuery(result.city || result.name.split(',')[0])
     setIsOpen(false)
     clearResults()
 
@@ -93,10 +93,10 @@ export default function SearchBar({ onSelect, placeholder = 'Search location...'
                 onClick={() => handleSelect(result)}
                 className="w-full text-left px-4 py-2.5 text-sm text-text hover:bg-primary/5 transition-colors first:rounded-t-xl last:rounded-b-xl"
               >
-                <span className="font-medium">{result.name.split(',')[0]}</span>
-                <span className="text-muted text-xs block mt-0.5 truncate">
-                  {result.name.split(',').slice(1).join(',').trim()}
-                </span>
+                <span className="font-medium">{result.city || result.name.split(',')[0]}</span>
+                {result.sub && (
+                  <span className="text-muted text-xs block mt-0.5 truncate">{result.sub}</span>
+                )}
               </button>
             </li>
           ))}

@@ -17,13 +17,13 @@ function getRoutePointAtKm(coords, targetKm) {
 
 async function reverseGeocode(lat, lng) {
   try {
+    const apiKey = import.meta.env.VITE_GEOAPIFY_API_KEY || ''
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=12`,
-      { headers: { 'Accept-Language': 'sr' } }
+      `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lng}&apiKey=${apiKey}`
     )
     const data = await res.json()
-    const addr = data.address || {}
-    return addr.city || addr.town || addr.village || addr.suburb || data.display_name?.split(',')[0] || '—'
+    const p = data?.features?.[0]?.properties || {}
+    return p.city || p.town || p.village || p.municipality || p.name || p.formatted?.split(',')[0] || '—'
   } catch {
     return '—'
   }

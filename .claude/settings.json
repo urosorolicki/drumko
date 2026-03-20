@@ -17,7 +17,12 @@
       "Bash(tar -xzf geocoder-autocomplete.tgz package/dist/helpers/category.helper.js)",
       "Bash(grep -v \"\\\\.map$\")",
       "Bash(curl -s \"https://apidocs.geoapify.com/docs/places/scripts.e40f4906a16a607e.js\")",
-      "Bash(curl -s \"https://apidocs.geoapify.com/docs/places/\")"
+      "Bash(curl -s \"https://apidocs.geoapify.com/docs/places/\")",
+      "Bash(py skills/ui-ux-pro-max/scripts/search.py \"road trip planner travel mobile app claymorphism fun\" --design-system -p \"Drumko\" -f markdown)",
+      "Bash(py .claude/skills/ui-ux-pro-max/scripts/search.py \"road trip planner travel mobile app claymorphism fun\" --design-system -p \"Drumko\" -f markdown)",
+      "Bash(py .claude/skills/ui-ux-pro-max/scripts/search.py \"touch mobile interaction cards\" --domain ux)",
+      "Bash(py .claude/skills/ui-ux-pro-max/scripts/search.py \"layout responsive mobile\" --domain ux)",
+      "Bash(npm i:*)"
     ]
   }
 }

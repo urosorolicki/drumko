@@ -323,76 +323,70 @@ export default function CreateTrip() {
       className="min-h-screen bg-background"
     >
       {/* Header */}
-      <header className="bg-surface border-b border-border sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <button onClick={() => navigate(-1)} className="text-muted hover:text-text transition-colors">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <header className="bg-surface/95 backdrop-blur-sm border-b border-border sticky top-0 z-50">
+        <div className="max-w-5xl mx-auto px-4 py-3">
+          {/* Top bar */}
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={() => {
+                if (step > 0) { setStep(s => s - 1); window.scrollTo({ top: 0, behavior: 'smooth' }) }
+                else navigate(-1)
+              }}
+              aria-label="Nazad"
+              className="w-9 h-9 rounded-xl bg-stone-100 hover:bg-stone-200 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M15 18l-6-6 6-6"/>
               </svg>
             </button>
-            <h1 className="text-lg font-bold text-text">
+            <h1 className="text-base font-bold text-text flex-1 text-center">
               {isEditing ? t('editTrip') : t('newTrip')}
             </h1>
             <LanguageToggle />
           </div>
 
-          {/* Step progress — bubbles row + labels row */}
-          <div>
-            {/* Row 1: bubbles + connector lines */}
-            <div className="flex items-center">
-              {STEP_META.map((meta, i) => (
-                <div key={i} className="flex items-center" style={{ flex: i < STEP_META.length - 1 ? '1' : '0 0 auto' }}>
-                  <motion.div
-                    animate={i === step ? { scale: [1, 1.08, 1] } : { scale: 1 }}
-                    transition={{ duration: 0.5, repeat: i === step ? Infinity : 0, repeatDelay: 2 }}
-                    className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 transition-all duration-300 ${
-                      i < step
-                        ? 'bg-success shadow-[0_4px_0_rgba(34,197,94,0.4)]'
-                        : i === step
-                        ? `${meta.iconBg} shadow-[0_4px_0_rgba(0,0,0,0.15)]`
-                        : 'bg-border'
-                    }`}
-                  >
-                    {i < step ? (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
-                        <path d="M20 6L9 17l-5-5"/>
-                      </svg>
-                    ) : (
-                      <div className={i === step ? 'text-white' : 'text-muted'}>
-                        {i === step ? meta.icon : <span className="text-sm font-bold">{i + 1}</span>}
-                      </div>
-                    )}
-                  </motion.div>
-                  {i < STEP_META.length - 1 && (
-                    <div className="flex-1 h-1 rounded-full bg-border mx-1.5 overflow-hidden">
-                      <motion.div
-                        className="h-full bg-success rounded-full"
-                        initial={{ width: 0 }}
-                        animate={{ width: i < step ? '100%' : '0%' }}
-                        transition={{ duration: 0.4 }}
-                      />
+          {/* Step stepper — grid keeps each label perfectly centered under its bubble */}
+          <div className="grid grid-cols-4">
+            {STEP_META.map((meta, i) => (
+              <div key={i} className="flex flex-col items-center relative">
+                {/* Left connector */}
+                {i > 0 && (
+                  <div className="absolute left-0 right-1/2 top-5 h-1 -translate-y-1/2 bg-border overflow-hidden">
+                    <motion.div className="h-full bg-success" initial={false} animate={{ width: i <= step ? '100%' : '0%' }} transition={{ duration: 0.4 }} />
+                  </div>
+                )}
+                {/* Right connector */}
+                {i < STEP_META.length - 1 && (
+                  <div className="absolute left-1/2 right-0 top-5 h-1 -translate-y-1/2 bg-border overflow-hidden">
+                    <motion.div className="h-full bg-success" initial={false} animate={{ width: i < step ? '100%' : '0%' }} transition={{ duration: 0.4 }} />
+                  </div>
+                )}
+                {/* Bubble */}
+                <motion.div
+                  className={`relative z-10 w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 mb-1.5 ${
+                    i < step ? 'bg-success shadow-[0_3px_0_rgba(34,197,94,0.35)]'
+                    : i === step ? `${meta.iconBg} shadow-[0_3px_0_rgba(0,0,0,0.15)]`
+                    : 'bg-stone-100'
+                  }`}
+                  animate={i === step ? { scale: [1, 1.06, 1] } : { scale: 1 }}
+                  transition={{ duration: 1.8, repeat: i === step ? Infinity : 0, repeatDelay: 2.5 }}
+                >
+                  {i < step ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>
+                  ) : (
+                    <div className={i === step ? 'text-white' : 'text-muted'}>
+                      {i === step ? meta.icon : <span className="text-sm font-bold">{i + 1}</span>}
                     </div>
                   )}
-                </div>
-              ))}
-            </div>
-            {/* Row 2: labels — desktop only, aligned under each bubble */}
-            <div className="hidden sm:flex mt-1.5">
-              {STEP_META.map((meta, i) => (
-                <div
-                  key={i}
-                  className="flex items-start"
-                  style={{ flex: i < STEP_META.length - 1 ? '1' : '0 0 auto' }}
-                >
-                  <span className={`text-[10px] font-semibold w-10 text-center leading-tight ${
-                    i === step ? 'text-text' : i < step ? 'text-success' : 'text-muted'
-                  }`}>
-                    {t(meta.key)}
-                  </span>
-                </div>
-              ))}
-            </div>
+                </motion.div>
+                {/* Label */}
+                <span className={`text-[10px] font-semibold leading-tight text-center hidden sm:block ${
+                  i === step ? 'text-text' : i < step ? 'text-success' : 'text-muted/50'
+                }`}>
+                  {t(meta.key)}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       </header>
@@ -417,6 +411,7 @@ export default function CreateTrip() {
               onRemoveStop={handleRemoveStop}
               onNoteChange={handleNoteChange}
               onReorderStops={(stops) => updateForm('stops', stops)}
+              onUpdateCity={(key, val) => updateForm(key, val)}
               onRetryPOIs={() => form.route?.geometry && fetchPOIs(form.route.geometry.coordinates, Object.keys(poiCategories))}
             />
           )}
@@ -424,31 +419,37 @@ export default function CreateTrip() {
           {step === 3 && <StepBudget key="budget" form={form} setForm={setForm} />}
         </AnimatePresence>
 
-        {/* Navigation buttons */}
-        <div className="flex justify-between mt-8 pb-8">
-          <button
-            onClick={() => { setStep(s => s - 1); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-            disabled={step === 0}
-            className="px-6 py-3 rounded-xl font-semibold text-muted hover:text-text disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            {t('back')}
-          </button>
+        {/* Navigation */}
+        <div className="flex items-center justify-between mt-8 pb-10">
+          {step > 0 ? (
+            <button
+              onClick={() => { setStep(s => s - 1); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+              className="flex items-center gap-1.5 px-5 py-3 rounded-xl font-semibold text-muted hover:text-text hover:bg-stone-100 transition-all cursor-pointer"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>
+              {t('back')}
+            </button>
+          ) : <div />}
 
           {step < STEPS.length - 1 ? (
-            <button
+            <motion.button
+              whileTap={{ scale: 0.96 }}
               onClick={() => { setStep(s => s + 1); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
               disabled={!canProceed()}
-              className="btn-clay px-8 py-3 bg-primary text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              className="btn-clay flex items-center gap-2 px-8 py-3 bg-primary text-white font-bold rounded-xl shadow-[0_4px_0_rgba(249,115,22,0.35)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {t('next')}
-            </button>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
+            </motion.button>
           ) : (
-            <button
+            <motion.button
+              whileTap={{ scale: 0.96 }}
               onClick={handleSave}
-              className="btn-clay px-8 py-3 bg-success text-white font-bold rounded-xl cursor-pointer"
+              className="btn-clay flex items-center gap-2 px-8 py-3 bg-success text-white font-bold rounded-xl shadow-[0_4px_0_rgba(34,197,94,0.35)] cursor-pointer"
             >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg>
               {isEditing ? t('saveChanges') : t('save')}
-            </button>
+            </motion.button>
           )}
         </div>
       </main>
@@ -906,45 +907,35 @@ function StopsPanel({ form, pois, suggestions, smartLoading, poisLoading, poisEr
 
 
   return (
-    <div className="bg-surface border-2 border-orange-200 rounded-2xl overflow-hidden shadow-[0_4px_0_rgba(249,115,22,0.15)] flex flex-col" style={{ maxHeight: 'min(640px, 80vh)' }}>
-      {/* Tab bar */}
-      <div className="flex border-b-2 border-orange-100 shrink-0">
-        <button
-          onClick={() => setTab('preporuke')}
-          className={`flex-1 py-3 text-xs font-bold transition-colors cursor-pointer relative ${
-            tab === 'preporuke' ? 'bg-orange-50 text-primary border-b-2 border-primary' : 'text-muted hover:text-text'
-          }`}
-        >
-          ✨ Preporuke
-          {smartLoading && <span className="ml-1 inline-block w-2 h-2 bg-primary rounded-full animate-ping" />}
-          {!smartLoading && suggestions.length > 0 && (
-            <span className="ml-1 inline-flex items-center justify-center w-4 h-4 bg-primary text-white text-[9px] font-bold rounded-full">
-              {suggestions.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setTab('route')}
-          className={`flex-1 py-3 text-xs font-bold transition-colors cursor-pointer ${
-            tab === 'route' ? 'bg-orange-50 text-primary border-b-2 border-primary' : 'text-muted hover:text-text'
-          }`}
-        >
-          🛣️ Ruta ({form.stops.length})
-        </button>
-        <button
-          onClick={() => setTab('discover')}
-          className={`flex-1 py-3 text-xs font-bold transition-colors cursor-pointer relative ${
-            tab === 'discover' ? 'bg-orange-50 text-primary border-b-2 border-primary' : 'text-muted hover:text-text'
-          }`}
-        >
-          🔍 Otkrij
-          {poisLoading && <span className="ml-1 inline-block w-2 h-2 bg-primary rounded-full animate-ping" />}
-          {!poisLoading && sortedPois.length > 0 && (
-            <span className="ml-1 inline-flex items-center justify-center w-4 h-4 bg-primary text-white text-[9px] font-bold rounded-full">
-              {sortedPois.length > 99 ? '99+' : sortedPois.length}
-            </span>
-          )}
-        </button>
+    <div className="bg-surface border-2 border-orange-100 rounded-2xl overflow-hidden shadow-[0_4px_0_rgba(249,115,22,0.12)] flex flex-col lg:max-h-[680px]">
+      {/* Tab bar — pill style inside padding */}
+      <div className="p-2.5 bg-stone-50 border-b border-orange-100 shrink-0">
+        <div className="flex gap-1.5 bg-stone-100 rounded-xl p-1">
+          {[
+            { key: 'preporuke', label: 'Preporuke', badge: smartLoading ? '…' : suggestions.length > 0 ? suggestions.length : null },
+            { key: 'route',     label: `Ruta`,      badge: form.stops.length > 0 ? form.stops.length : null },
+            { key: 'discover',  label: 'Otkrij',    badge: poisLoading ? '…' : null },
+          ].map(({ key, label, badge }) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                tab === key
+                  ? 'bg-white text-primary shadow-sm'
+                  : 'text-muted hover:text-text'
+              }`}
+            >
+              {label}
+              {badge !== null && badge !== undefined && (
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                  tab === key ? 'bg-primary/15 text-primary' : 'bg-stone-200 text-muted'
+                }`}>
+                  {badge}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-3">
@@ -1090,93 +1081,102 @@ function StopsPanel({ form, pois, suggestions, smartLoading, poisLoading, poisEr
             </motion.div>
           )}
 
-          {/* ── RUTA TAB ── */}
+          {/* ── RUTA TAB — timeline ── */}
           {tab === 'route' && (
             <motion.div key="route" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <div className="flex items-center gap-2 p-2.5 mb-1 bg-success/10 border border-success/20 rounded-xl">
-                <span className="w-7 h-7 bg-success rounded-full flex items-center justify-center shrink-0 text-sm">🏠</span>
-                <div>
-                  <p className="text-[10px] text-muted font-bold uppercase tracking-wide">Polazak</p>
-                  <p className="text-sm font-bold text-text">{form.startCity?.name?.split(',')[0]}</p>
-                </div>
-                {form.route?.totalDistance > 0 && (
-                  <span className="ml-auto text-[10px] font-bold text-muted bg-stone-100 px-2 py-1 rounded-lg">
-                    0 km
-                  </span>
-                )}
-              </div>
+              {/* Timeline */}
+              <div className="relative pl-10">
+                {/* Vertical line */}
+                <div className="absolute left-[18px] top-4 bottom-4 w-0.5 border-l-2 border-dashed border-stone-200" />
 
-              {form.stops.length === 0 ? (
-                <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="text-center py-8 px-4">
-                  <p className="text-4xl mb-3">🗺️</p>
-                  <p className="text-sm font-bold text-text mb-1">Nema stanica još</p>
-                  <p className="text-xs text-muted leading-relaxed">
-                    Klikni na mapu da dodaš stanicu, ili pretraži mesta u tabu <strong>Otkrij</strong>
-                  </p>
-                </motion.div>
-              ) : (
-                <div className="space-y-1 my-1.5">
-                  {form.stops.map((stop, i) => {
-                    const style = POI_STYLE[stop.type] ?? POI_STYLE.stop
-                    const kmMark = thinCoords ? getRouteKm(stop.lat, stop.lng, thinCoords) : null
-                    return (
-                      <motion.div
-                        key={stop.id}
-                        layout
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 10 }}
-                        className={`flex items-center gap-2 p-2.5 border ${style.border} bg-white rounded-xl group`}
-                      >
-                        <span className="text-lg shrink-0">{style.emoji}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-text truncate">{stop.name?.split(',')[0]}</p>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${style.color}`}>
-                              {style.label}
-                            </span>
-                            {kmMark != null && (
-                              <span className="text-[9px] font-bold text-muted">km {kmMark}</span>
-                            )}
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => onRemoveStop(stop.id)}
-                          className="text-muted hover:text-danger opacity-60 group-hover:opacity-100 transition-all cursor-pointer shrink-0 p-1"
+                {/* Start node */}
+                <div className="relative flex items-center gap-3 mb-4">
+                  <div className="absolute -left-10 w-9 h-9 rounded-full bg-success flex items-center justify-center shadow-[0_3px_0_rgba(34,197,94,0.35)] shrink-0">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3" fill="white" stroke="none"/></svg>
+                  </div>
+                  <div className="bg-success/8 border border-success/20 rounded-xl px-3 py-2 flex-1">
+                    <p className="text-[10px] text-success font-bold uppercase tracking-widest">Polazak</p>
+                    <p className="text-sm font-bold text-text">{form.startCity?.city || form.startCity?.name?.split(',')[0]}</p>
+                  </div>
+                </div>
+
+                {/* Stop nodes */}
+                <AnimatePresence>
+                  {form.stops.length === 0 ? (
+                    <motion.div
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                      className="relative flex items-center gap-3 mb-4"
+                    >
+                      <div className="absolute -left-10 w-9 h-9 rounded-xl bg-stone-100 border-2 border-dashed border-stone-300 flex items-center justify-center shrink-0">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+                      </div>
+                      <div className="border-2 border-dashed border-stone-200 rounded-xl px-3 py-3 flex-1 text-center">
+                        <p className="text-xs font-semibold text-muted">Dodaj stanice iz Preporuke ili Otkrij</p>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    form.stops.map((stop, i) => {
+                      const style = POI_STYLE[stop.type] ?? POI_STYLE.stop
+                      const kmMark = thinCoords ? getRouteKm(stop.lat, stop.lng, thinCoords) : null
+                      return (
+                        <motion.div
+                          key={stop.id}
+                          layout
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 10, height: 0 }}
+                          className="relative flex items-center gap-3 mb-4 group"
                         >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                            <path d="M18 6L6 18M6 6l12 12"/>
-                          </svg>
-                        </button>
-                      </motion.div>
-                    )
-                  })}
-                </div>
-              )}
+                          <div className="absolute -left-10 w-9 h-9 rounded-xl bg-white border-2 border-orange-200 flex items-center justify-center shadow-sm shrink-0 text-base">
+                            {style.emoji}
+                          </div>
+                          <div className={`flex items-center gap-2 border-2 ${style.border} bg-white rounded-xl px-3 py-2 flex-1 min-w-0`}>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-text truncate">{stop.name?.split(',')[0]}</p>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${style.color}`}>{style.label}</span>
+                                {kmMark != null && <span className="text-[9px] text-muted font-semibold">km {kmMark}</span>}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => onRemoveStop(stop.id)}
+                              className="w-6 h-6 rounded-full bg-stone-100 hover:bg-red-50 flex items-center justify-center transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100"
+                            >
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="text-muted hover:text-red-500"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                            </button>
+                          </div>
+                        </motion.div>
+                      )
+                    })
+                  )}
+                </AnimatePresence>
 
-              <div className="flex items-center gap-2 p-2.5 bg-primary/10 border border-primary/20 rounded-xl mt-1">
-                <span className="w-7 h-7 bg-primary rounded-full flex items-center justify-center shrink-0 text-sm">🏁</span>
-                <div>
-                  <p className="text-[10px] text-muted font-bold uppercase tracking-wide">Odredište</p>
-                  <p className="text-sm font-bold text-text">{form.endCity?.name?.split(',')[0]}</p>
+                {/* End node */}
+                <div className="relative flex items-center gap-3">
+                  <div className="absolute -left-10 w-9 h-9 rounded-full bg-primary flex items-center justify-center shadow-[0_3px_0_rgba(249,115,22,0.35)] shrink-0">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15" stroke="white" strokeWidth="2"/></svg>
+                  </div>
+                  <div className="bg-primary/8 border border-primary/20 rounded-xl px-3 py-2 flex-1">
+                    <p className="text-[10px] text-primary font-bold uppercase tracking-widest">Odredište</p>
+                    <p className="text-sm font-bold text-text">{form.endCity?.city || form.endCity?.name?.split(',')[0]}</p>
+                    {form.route?.totalDistance > 0 && (
+                      <p className="text-[10px] text-muted font-semibold mt-0.5">{Math.round(form.route.totalDistance)} km ukupno</p>
+                    )}
+                  </div>
                 </div>
-                {form.route?.totalDistance > 0 && (
-                  <span className="ml-auto text-[10px] font-bold text-muted bg-stone-100 px-2 py-1 rounded-lg">
-                    {Math.round(form.route.totalDistance)} km
-                  </span>
-                )}
               </div>
 
+              {/* Open in nav apps */}
               {form.startCity?.lat && form.endCity?.lat && (
-                <div className="mt-3 flex gap-2">
+                <div className="flex gap-2 mt-4 pt-3 border-t border-stone-100">
                   <a href={buildGoogleMapsUrl(form)} target="_blank" rel="noopener noreferrer"
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-[#4285F4] text-white text-xs font-bold rounded-xl shadow-[0_3px_0_rgba(0,0,0,0.15)] hover:-translate-y-0.5 transition-all cursor-pointer">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-[#4285F4] text-white text-xs font-bold rounded-xl shadow-[0_3px_0_rgba(0,0,0,0.15)] hover:opacity-90 transition-opacity cursor-pointer">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
                     Google Maps
                   </a>
                   <a href={buildWazeUrl(form)} target="_blank" rel="noopener noreferrer"
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-[#33CCFF] text-white text-xs font-bold rounded-xl shadow-[0_3px_0_rgba(0,0,0,0.15)] hover:-translate-y-0.5 transition-all cursor-pointer">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.5C6.21 1.5 1.5 6.21 1.5 12S6.21 22.5 12 22.5 22.5 17.79 22.5 12 17.79 1.5 12 1.5zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 13.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-[#33CCFF] text-white text-xs font-bold rounded-xl shadow-[0_3px_0_rgba(0,0,0,0.15)] hover:opacity-90 transition-opacity cursor-pointer">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.5C6.21 1.5 1.5 6.21 1.5 12S6.21 22.5 12 22.5 22.5 17.79 22.5 12 17.79 1.5 12 1.5zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 13.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
                     Waze
                   </a>
                 </div>
@@ -1319,8 +1319,63 @@ function StopsPanel({ form, pois, suggestions, smartLoading, poisLoading, poisEr
 /* ============================================
    STEP 2: Route & Stops
    ============================================ */
-function StepRoute({ form, pois, suggestions, smartLoading, routeLoading, poisLoading, poisError, wantedStops, onWantedStopsChange, onAddStop, onRemoveStop, onNoteChange, onReorderStops, onRetryPOIs }) {
-  const { t } = useTranslation()
+function StepRoute({ form, pois, suggestions, smartLoading, routeLoading, poisLoading, poisError, wantedStops, onWantedStopsChange, onAddStop, onRemoveStop, onNoteChange, onReorderStops, onRetryPOIs, onUpdateCity }) {
+  const [mobileView, setMobileView] = useState('panel')
+  const startSearch = useNominatim()
+  const endSearch = useNominatim()
+  const [startQuery, setStartQuery] = useState(form.startCity?.city || form.startCity?.name?.split(',')[0] || '')
+  const [endQuery, setEndQuery] = useState(form.endCity?.city || form.endCity?.name?.split(',')[0] || '')
+  const [showStart, setShowStart] = useState(false)
+  const [showEnd, setShowEnd] = useState(false)
+  const hasRoute = form.startCity?.lat && form.endCity?.lat
+  const dist = form.route?.totalDistance || 0
+  const dur = form.route?.totalDuration || 0
+  const routeHours = Math.floor(dur / 3600)
+  const routeMins = Math.floor((dur % 3600) / 60)
+
+  const sharedPanel = (
+    <StopsPanel
+      form={form}
+      pois={pois}
+      suggestions={suggestions}
+      smartLoading={smartLoading}
+      poisLoading={poisLoading}
+      poisError={poisError}
+      wantedStops={wantedStops}
+      onWantedStopsChange={onWantedStopsChange}
+      onAddStop={onAddStop}
+      onRemoveStop={onRemoveStop}
+      onRetryPOIs={onRetryPOIs}
+    />
+  )
+
+  const sharedMap = (loading, h) => (
+    <div className="relative">
+      {loading && (
+        <div className="absolute inset-0 z-10 bg-surface/80 backdrop-blur-sm flex items-center justify-center rounded-2xl">
+          <div className="text-center">
+            <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+            <p className="text-sm font-semibold text-text">Računam rutu...</p>
+          </div>
+        </div>
+      )}
+      <TripMap
+        startCity={form.startCity}
+        endCity={form.endCity}
+        stops={form.stops}
+        route={form.route}
+        pois={pois}
+        onAddStop={onAddStop}
+        onRemoveStop={onRemoveStop}
+        onNoteChange={onNoteChange}
+        showSearch={true}
+        showPOIs={true}
+        showStats={false}
+        height={h}
+      />
+    </div>
+  )
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 30 }}
@@ -1328,57 +1383,132 @@ function StepRoute({ form, pois, suggestions, smartLoading, routeLoading, poisLo
       exit={{ opacity: 0, x: -30 }}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
     >
-      <StepBanner stepIndex={1} t={t} />
+      {/* City search row — always editable in step 2 */}
+      <div className="flex items-start gap-2 mb-4">
+        <div className="flex-1">
+          <CityInput
+            label="Polazak"
+            dotColor="bg-success"
+            textColor="text-success"
+            focusColor="focus:border-success focus:ring-2 focus:ring-success/30"
+            confirmed={form.startCity ? (form.startCity.city || form.startCity.name?.split(',')[0]) : null}
+            placeholder="Grad polaska"
+            search={startSearch}
+            query={startQuery}
+            setQuery={setStartQuery}
+            show={showStart}
+            setShow={setShowStart}
+            onSelect={(r) => onUpdateCity('startCity', r)}
+          />
+        </div>
+        <div className="pt-8 text-muted shrink-0">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </div>
+        <div className="flex-1">
+          <CityInput
+            label="Odredište"
+            dotColor="bg-primary"
+            textColor="text-primary"
+            focusColor="focus:border-primary focus:ring-2 focus:ring-primary/30"
+            confirmed={form.endCity ? (form.endCity.city || form.endCity.name?.split(',')[0]) : null}
+            placeholder="Odredište"
+            search={endSearch}
+            query={endQuery}
+            setQuery={setEndQuery}
+            show={showEnd}
+            setShow={setShowEnd}
+            onSelect={(r) => onUpdateCity('endCity', r)}
+          />
+        </div>
+      </div>
 
-      {!form.startCity?.lat || !form.endCity?.lat ? (
-        <div className="text-center py-12 text-muted">
-          <p>Please set start and destination cities in the previous step.</p>
+      {/* Route summary bar */}
+      <AnimatePresence>
+        {hasRoute && dist > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="bg-gradient-to-r from-orange-500 to-primary rounded-2xl p-4 mb-4 shadow-[0_4px_0_rgba(249,115,22,0.3)]"
+          >
+            <div className="flex items-center">
+              <div className="flex-1 text-center">
+                <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest mb-0.5">Distanca</p>
+                <p className="text-white font-bold text-xl leading-none">{Math.round(dist)} <span className="text-sm opacity-80">km</span></p>
+              </div>
+              <div className="w-px h-8 bg-white/25 mx-2" />
+              <div className="flex-1 text-center">
+                <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest mb-0.5">Vožnja</p>
+                <p className="text-white font-bold text-xl leading-none">{routeHours}h <span className="text-sm opacity-80">{routeMins}min</span></p>
+              </div>
+              <div className="w-px h-8 bg-white/25 mx-2" />
+              <div className="flex-1 text-center">
+                <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest mb-0.5">Stanice</p>
+                <p className="text-white font-bold text-xl leading-none">{form.stops.length}</p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {!hasRoute ? (
+        <div className="text-center py-16 px-6">
+          <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F97316" strokeWidth="2" strokeLinecap="round"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
+          </div>
+          <p className="text-lg font-bold text-text mb-1">Postavi polazak i cilj</p>
+          <p className="text-sm text-muted">Vrati se na prethodni korak i unesi gradove</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Map — col 1-2 on desktop, below panel on mobile */}
-          <div className="relative lg:col-span-2 lg:row-start-1 row-start-2">
-            {routeLoading && (
-              <div className="absolute inset-0 z-10 bg-surface/80 flex items-center justify-center rounded-xl">
-                <div className="text-center">
-                  <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                  <p className="text-sm text-muted">Računam rutu...</p>
-                </div>
-              </div>
-            )}
-            <TripMap
-              startCity={form.startCity}
-              endCity={form.endCity}
-              stops={form.stops}
-              route={form.route}
-              pois={pois}
-              onAddStop={onAddStop}
-              onRemoveStop={onRemoveStop}
-              onNoteChange={onNoteChange}
-              showSearch={true}
-              showPOIs={true}
-              showStats={true}
-              height="min(500px, 55vh)"
-            />
+        <>
+          {/* ── MOBILE: toggle between panel and map ── */}
+          <div className="lg:hidden">
+            <div className="flex bg-stone-100 rounded-2xl p-1 mb-4">
+              <button
+                onClick={() => setMobileView('panel')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+                  mobileView === 'panel' ? 'bg-white text-primary shadow-sm' : 'text-muted'
+                }`}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                Preporuke
+                {suggestions.length > 0 && (
+                  <span className="text-[9px] font-bold bg-primary text-white px-1.5 py-0.5 rounded-full">{suggestions.length}</span>
+                )}
+              </button>
+              <button
+                onClick={() => setMobileView('map')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+                  mobileView === 'map' ? 'bg-white text-primary shadow-sm' : 'text-muted'
+                }`}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3V7z"/><path d="M9 4v13M15 7v13"/></svg>
+                Mapa
+                {routeLoading && <span className="w-1.5 h-1.5 bg-primary rounded-full animate-ping" />}
+              </button>
+            </div>
+
+            <AnimatePresence mode="wait">
+              {mobileView === 'panel' ? (
+                <motion.div key="panel" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+                  {sharedPanel}
+                </motion.div>
+              ) : (
+                <motion.div key="map" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
+                  {sharedMap(routeLoading, '65dvh')}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
-          {/* Stops + Discover panel — col 3 on desktop, above map on mobile */}
-          <div className="lg:col-start-3 lg:row-start-1 row-start-1">
-            <StopsPanel
-              form={form}
-              pois={pois}
-              suggestions={suggestions}
-              smartLoading={smartLoading}
-              poisLoading={poisLoading}
-              poisError={poisError}
-              wantedStops={wantedStops}
-              onWantedStopsChange={onWantedStopsChange}
-              onAddStop={onAddStop}
-              onRemoveStop={onRemoveStop}
-              onRetryPOIs={onRetryPOIs}
-            />
+          {/* ── DESKTOP: side by side ── */}
+          <div className="hidden lg:grid lg:grid-cols-3 gap-4">
+            <div className="lg:col-start-3 lg:row-start-1">{sharedPanel}</div>
+            <div className="lg:col-span-2 lg:col-start-1 lg:row-start-1">
+              {sharedMap(routeLoading, 'min(520px, 58vh)')}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </motion.div>
   )
