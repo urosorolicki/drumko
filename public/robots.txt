@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /trips
+Disallow: /reset-password
+
+Sitemap: https://drumko.app/sitemap.xml
