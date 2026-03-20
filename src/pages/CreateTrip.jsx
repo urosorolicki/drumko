@@ -460,6 +460,7 @@ export default function CreateTrip() {
           <SaveAuthModal
             onClose={() => setShowSaveModal(false)}
             onSuccess={() => { setShowSaveModal(false); doSave() }}
+            formData={form}
           />
         )}
       </AnimatePresence>
@@ -470,7 +471,7 @@ export default function CreateTrip() {
 /* ============================================
    Save Auth Modal
    ============================================ */
-function SaveAuthModal({ onClose, onSuccess }) {
+function SaveAuthModal({ onClose, onSuccess, formData }) {
   const [tab, setTab] = useState('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -501,9 +502,11 @@ function SaveAuthModal({ onClose, onSuccess }) {
   async function handleGoogle() {
     setGoogleLoading(true)
     try {
+      if (formData) localStorage.setItem('drumko_pending_trip', JSON.stringify(formData))
       await signInWithGoogle()
-      // OAuth redirect — trip will be saved after redirect
+      // OAuth redirect — trip will be restored in App.jsx after redirect
     } catch (err) {
+      localStorage.removeItem('drumko_pending_trip')
       setError(err.message)
       setGoogleLoading(false)
     }
@@ -1760,7 +1763,8 @@ function StepBudget({ form, setForm }) {
    *  This guarantees ALL 5 categories always get a share, regardless of
    *  what the user previously entered in individual fields. */
   function handleTotalChange(rawValue) {
-    const total = parseFloat(rawValue) || 0
+    const cleaned = String(rawValue).replace(/[^0-9.]/g, '')
+    const total = parseFloat(cleaned) || 0
     const keys = Object.keys(CATEGORY_META)
     const newCategories = {}
     let allocated = 0

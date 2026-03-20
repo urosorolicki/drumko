@@ -21,7 +21,9 @@ export default function TripDetail() {
   const trip = useTripStore(s => s.trips.find(t => t.id === id))
   const updateTrip = useTripStore(s => s.updateTrip)
   const deleteTrip = useTripStore(s => s.deleteTrip)
+  const setShared = useTripStore(s => s.setShared)
   const user = useAuthStore(s => s.user)
+  const [showShareModal, setShowShareModal] = useState(false)
   const togglePackingItem = useTripStore(s => s.togglePackingItem)
   const addExpense = useTripStore(s => s.addExpense)
   const removeExpense = useTripStore(s => s.removeExpense)
@@ -59,9 +61,7 @@ export default function TripDetail() {
   }
 
   function handleShareTrip() {
-    navigator.clipboard.writeText(window.location.href).then(() => {
-      alert('Link copied to clipboard!')
-    })
+    setShowShareModal(true)
   }
 
   return (
@@ -168,6 +168,92 @@ export default function TripDetail() {
           )}
         </AnimatePresence>
       </main>
+
+      {/* Share modal */}
+      <AnimatePresence>
+        {showShareModal && (
+          <ShareModal
+            trip={trip}
+            onClose={() => setShowShareModal(false)}
+            onToggleShared={(shared) => setShared(id, shared, user?.id)}
+          />
+        )}
+      </AnimatePresence>
+    </motion.div>
+  )
+}
+
+/* ============================================================
+   SHARE MODAL
+   ============================================================ */
+function ShareModal({ trip, onClose, onToggleShared }) {
+  const [copied, setCopied] = useState(false)
+  const shareUrl = `${window.location.origin}/shared/${trip.id}`
+
+  function copyLink() {
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.92, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.92, y: 20 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 26 }}
+        className="bg-white rounded-3xl shadow-[0_8px_0_rgba(0,0,0,0.12)] p-6 w-full max-w-sm"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-xl font-bold text-text mb-1">Podeli putovanje</h2>
+        <p className="text-sm text-muted mb-5">Svako sa linkom može da vidi ovo putovanje.</p>
+
+        {/* Toggle */}
+        <div className="flex items-center justify-between bg-surface rounded-2xl p-4 mb-4 border border-border">
+          <div>
+            <p className="text-sm font-semibold text-text">{trip.isShared ? 'Javno putovanje' : 'Privatno putovanje'}</p>
+            <p className="text-xs text-muted">{trip.isShared ? 'Link je aktivan' : 'Samo ti možeš da vidiš'}</p>
+          </div>
+          <button
+            onClick={() => onToggleShared(!trip.isShared)}
+            className={`w-12 h-6 rounded-full transition-colors relative ${trip.isShared ? 'bg-primary' : 'bg-border'}`}
+          >
+            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${trip.isShared ? 'left-6' : 'left-0.5'}`} />
+          </button>
+        </div>
+
+        {/* Link */}
+        {trip.isShared && (
+          <div className="flex gap-2 mb-4">
+            <input
+              readOnly
+              value={shareUrl}
+              className="flex-1 px-3 py-2.5 text-xs border border-border rounded-xl bg-background text-muted font-mono truncate"
+            />
+            <button
+              onClick={copyLink}
+              className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-colors ${copied ? 'bg-success text-white' : 'bg-primary text-white'}`}
+            >
+              {copied ? 'Kopirano!' : 'Kopiraj'}
+            </button>
+          </div>
+        )}
+
+        <button
+          onClick={onClose}
+          className="w-full py-3 bg-surface border border-border rounded-xl text-sm font-semibold text-text"
+        >
+          Zatvori
+        </button>
+      </motion.div>
     </motion.div>
   )
 }

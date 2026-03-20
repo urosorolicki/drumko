@@ -33,10 +33,15 @@ function MapClickHandler({ onAddStop, enabled }) {
   const [pending, setPending] = useState(null) // { lat, lng }
   const [loading, setLoading] = useState(false)
   const markerRef = useRef(null)
+  const skipNextClick = useRef(false)
 
   useMapEvents({
     click(e) {
       if (!enabled || !onAddStop) return
+      if (skipNextClick.current) {
+        skipNextClick.current = false
+        return
+      }
       setPending({ lat: e.latlng.lat, lng: e.latlng.lng })
     },
   })
@@ -89,7 +94,7 @@ function MapClickHandler({ onAddStop, enabled }) {
               {loading ? '...' : 'Da, dodaj'}
             </button>
             <button
-              onClick={() => setPending(null)}
+              onClick={() => { skipNextClick.current = true; setPending(null) }}
               className="flex-1 py-1.5 bg-stone-100 text-text text-xs font-bold rounded-lg cursor-pointer hover:bg-stone-200"
             >
               Otkaži

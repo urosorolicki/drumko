@@ -26,6 +26,7 @@ function toRow(trip, userId) {
     route: trip.route,
     packing_list: trip.packingList,
     budget: trip.budget,
+    is_shared: trip.isShared ?? false,
     updated_at: new Date().toISOString(),
   }
 }
@@ -45,6 +46,7 @@ function fromRow(row) {
     route: row.route ?? { geometry: null, totalDistance: 0, totalDuration: 0 },
     packingList: row.packing_list ?? [],
     budget: row.budget ?? { total: 0, currency: 'RSD', categories: {}, expenses: [] },
+    isShared: row.is_shared ?? false,
   }
 }
 
@@ -119,6 +121,29 @@ const useTripStore = create(
 
       setActiveTrip: (id) => set({ activeTripId: id }),
       getTrip: (id) => get().trips.find((t) => t.id === id),
+
+      /** Toggle public sharing for a trip */
+      setShared: async (tripId, shared, userId) => {
+        set((s) => ({
+          trips: s.trips.map((t) => t.id === tripId ? { ...t, isShared: shared } : t),
+        }))
+        if (userId) {
+          const { error } = await supabase.from('trips').update({ is_shared: shared }).eq('id', tripId)
+          if (error) console.error('setShared:', error)
+        }
+      },
+
+      /** Fetch a single shared trip by id — no auth required (public RLS) */
+      fetchSharedTrip: async (tripId) => {
+        const { data, error } = await supabase
+          .from('trips')
+          .select('*')
+          .eq('id', tripId)
+          .eq('is_shared', true)
+          .single()
+        if (error) return null
+        return fromRow(data)
+      },
 
       // ── Stop management ────────────────────────────────────────────────
 
