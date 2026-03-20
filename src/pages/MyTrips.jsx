@@ -164,9 +164,9 @@ function TripCard({ trip, index, onDelete }) {
           </div>
 
           {/* Date + distance */}
-          <div className="flex items-center justify-between text-xs text-muted">
+          <div className="flex items-center justify-between gap-2 text-xs text-muted flex-wrap">
             {trip.startDate ? (
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1 shrink-0">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <rect x="3" y="4" width="18" height="18" rx="2"/>
                   <path d="M16 2v4M8 2v4M3 10h18"/>
@@ -178,16 +178,16 @@ function TripCard({ trip, index, onDelete }) {
               <span className="italic">Bez datuma</span>
             )}
             {trip.route?.totalDistance > 0 && (
-              <span className="font-semibold">{formatDistance(trip.route.totalDistance)}</span>
+              <span className="font-semibold shrink-0">{formatDistance(trip.route.totalDistance)}</span>
             )}
           </div>
 
           {/* Budget bar — only if budget set */}
           {budgetTotal > 0 && (
             <div className="mt-3 pt-3 border-t border-border">
-              <div className="flex items-center justify-between text-[10px] text-muted mb-1">
-                <span>Budžet</span>
-                <span className="font-bold text-text">{budgetSpent.toLocaleString()} / {budgetTotal.toLocaleString()} {trip.budget?.currency || 'RSD'}</span>
+              <div className="flex items-center justify-between text-[10px] text-muted mb-1 gap-1">
+                <span className="shrink-0">Budžet</span>
+                <span className="font-bold text-text truncate">{budgetSpent.toLocaleString()} / {budgetTotal.toLocaleString()} {trip.budget?.currency || 'RSD'}</span>
               </div>
               <div className="h-1.5 bg-background rounded-full overflow-hidden">
                 <motion.div
@@ -345,7 +345,7 @@ export default function MyTrips() {
 
           {/* Right — actions */}
           <div className="flex items-center gap-2 justify-end">
-            <LanguageToggle />
+            <div className="hidden sm:block"><LanguageToggle /></div>
             <motion.div whileTap={{ scale: 0.95 }}>
               <Link
                 to="/trips/new"
@@ -421,11 +421,11 @@ export default function MyTrips() {
       {user && (
         <div className="pb-8">
           <div className="border-t border-border pt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div>
+            <div className="min-w-0 w-full sm:w-auto">
               <p className="text-xs font-semibold text-muted">Prijavljeni kao</p>
-              <p className="text-sm font-bold text-text">{user.email}</p>
+              <p className="text-sm font-bold text-text truncate">{user.email}</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => signOut()}
                 className="px-4 py-2 rounded-xl border-2 border-border text-sm font-semibold text-muted hover:bg-background transition-colors cursor-pointer"

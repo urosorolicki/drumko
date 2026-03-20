@@ -3,6 +3,28 @@ import { useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import useAuthStore from '../store/useAuthStore'
 
+function translateError(msg) {
+  if (!msg) return 'Nešto je pošlo naopako. Pokušaj ponovo.'
+  const m = msg.toLowerCase()
+  if (m.includes('invalid login credentials') || m.includes('invalid credentials'))
+    return 'Pogrešan email ili lozinka.'
+  if (m.includes('email not confirmed'))
+    return 'Email nije potvrđen. Provjeri inbox i klikni na link za potvrdu.'
+  if (m.includes('user already registered') || m.includes('already registered'))
+    return 'Nalog sa ovim emailom već postoji. Pokušaj se prijaviti.'
+  if (m.includes('password should be at least') || m.includes('weak password') || m.includes('password must be'))
+    return 'Lozinka mora imati najmanje 6 karaktera.'
+  if (m.includes('invalid email') || m.includes('invalid format') || m.includes('unable to validate email'))
+    return 'Email adresa nije ispravna.'
+  if (m.includes('too many requests') || m.includes('rate limit') || m.includes('over_email_send_rate_limit'))
+    return 'Previše pokušaja. Sačekaj malo i pokušaj ponovo.'
+  if (m.includes('network') || m.includes('fetch') || m.includes('failed to fetch'))
+    return 'Problem s internetom. Provjeri konekciju i pokušaj ponovo.'
+  if (m.includes('signup is disabled') || m.includes('signups not allowed'))
+    return 'Registracija trenutno nije dostupna.'
+  return msg
+}
+
 export default function Auth() {
   const [tab, setTab] = useState('signin')
   const [email, setEmail] = useState('')
@@ -25,11 +47,16 @@ export default function Auth() {
         await signIn(email, password)
         navigate('/trips')
       } else {
-        await signUp(email, password)
-        setSuccess('Provjeri email — poslali smo ti link za potvrdu!')
+        const data = await signUp(email, password)
+        if (data.session) {
+          // Email confirmation disabled — signed in immediately
+          navigate('/trips')
+        } else {
+          setSuccess(`Poslali smo link za potvrdu na ${email}. Provjeri inbox (i spam folder), pa klikni na link.`)
+        }
       }
     } catch (err) {
-      setError(err.message)
+      setError(translateError(err.message))
     } finally {
       setLoading(false)
     }
@@ -42,7 +69,7 @@ export default function Auth() {
       await signInWithGoogle()
       // redirect happens via OAuth, no navigate needed
     } catch (err) {
-      setError(err.message)
+      setError(translateError(err.message))
       setGoogleLoading(false)
     }
   }

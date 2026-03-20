@@ -22,8 +22,16 @@ const useAuthStore = create((set) => ({
   },
 
   signUp: async (email, password) => {
-    const { data, error } = await supabase.auth.signUp({ email, password })
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: `${window.location.origin}/trips` },
+    })
     if (error) throw error
+    // If email confirmation is disabled, Supabase returns a session immediately
+    if (data.session) {
+      set({ session: data.session, user: data.user })
+    }
     return data
   },
 

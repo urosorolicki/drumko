@@ -25,18 +25,30 @@ function getApiKey() {
  */
 function mapResult(feature) {
   const p = feature.properties || {};
-  const city = p.city || p.town || p.village || p.municipality || p.county || p.name || p.formatted?.split(',')[0] || '';
-  const state = p.state || p.region || '';
+  const resultType = p.result_type || p.type || '';
+  const cityName = p.city || p.town || p.village || p.municipality || p.county || '';
   const country = p.country || '';
-  const sub = [state, country].filter(Boolean).join(', ');
+
+  // For streets/buildings, use address_line1 (e.g. "Negovana Ljubinkovića 5")
+  // For cities/settlements, use the city name
+  const isAddress = resultType === 'building' || resultType === 'street' || resultType === 'amenity';
+  const primaryName = isAddress
+    ? (p.address_line1 || p.street || p.formatted?.split(',')[0] || cityName)
+    : (cityName || p.name || p.formatted?.split(',')[0] || '');
+
+  // Subtitle: for addresses show city+country, for cities show state+country
+  const subParts = isAddress
+    ? [cityName, country].filter(Boolean)
+    : [(p.state || p.region), country].filter(Boolean);
+  const sub = subParts.slice(0, 2).join(', ');
 
   return {
-    name: p.formatted || city,
-    city,
+    name: p.formatted || primaryName || '',
+    city: primaryName || '',
     sub,
     lat: p.lat,
     lng: p.lon,
-    type: p.result_type || p.type || '',
+    type: resultType,
   };
 }
 
@@ -93,7 +105,7 @@ export async function reverseGeocode(lat, lng) {
  *   clearResults: () => void
  * }}
  */
-export default function useNominatim({ featuretype = 'settlement' } = {}) {
+export default function useNominatim({ featuretype = null } = {}) {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
