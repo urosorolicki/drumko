@@ -1614,31 +1614,33 @@ function StepPacking({ form, setForm }) {
       </div>
 
       {/* Add custom item */}
-      <div className="flex gap-2 mb-5">
+      <div className="mb-5 space-y-2">
         <select
           value={newCategory}
           onChange={(e) => setNewCategory(e.target.value)}
-          className="px-3 py-2.5 border-2 border-amber-200 rounded-xl bg-surface text-text text-sm cursor-pointer"
+          className="w-full px-3 py-2.5 border-2 border-amber-200 rounded-xl bg-surface text-text text-sm cursor-pointer"
         >
           {[...categories, 'Ostalo'].filter((v, i, a) => a.indexOf(v) === i).map(cat => (
             <option key={cat} value={cat}>{cat}</option>
           ))}
         </select>
-        <input
-          type="text"
-          value={newItem}
-          onChange={(e) => setNewItem(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && addItem()}
-          placeholder="Add something to pack..."
-          className="flex-1 px-4 py-2.5 border-2 border-amber-200 rounded-xl bg-surface text-text placeholder:text-muted text-sm focus:outline-none focus:border-amber-400 transition-colors"
-        />
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={addItem}
-          className="btn-clay px-4 py-2.5 bg-amber-500 text-white font-bold rounded-xl text-sm cursor-pointer"
-        >
-          +
-        </motion.button>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={newItem}
+            onChange={(e) => setNewItem(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addItem()}
+            placeholder="Dodaj stvar za pakovanje..."
+            className="flex-1 px-4 py-2.5 border-2 border-amber-200 rounded-xl bg-surface text-text placeholder:text-muted text-sm focus:outline-none focus:border-amber-400 transition-colors"
+          />
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={addItem}
+            className="btn-clay px-5 py-2.5 bg-amber-500 text-white font-bold rounded-xl text-sm cursor-pointer shrink-0"
+          >
+            +
+          </motion.button>
+        </div>
       </div>
 
       {/* Packing items by category — fun gradient cards */}
@@ -1850,7 +1852,7 @@ function StepBudget({ form, setForm }) {
             type="number"
             value={budget.total || ''}
             onChange={(e) => handleTotalChange(e.target.value)}
-            className="flex-1 px-4 py-3 text-3xl font-extrabold border-2 border-emerald-300 rounded-xl bg-white text-success focus:outline-none focus:border-success focus:ring-2 focus:ring-success/30 transition-all"
+            className="flex-1 px-4 py-3 text-xl sm:text-3xl font-extrabold border-2 border-emerald-300 rounded-xl bg-white text-success focus:outline-none focus:border-success focus:ring-2 focus:ring-success/30 transition-all"
             placeholder="0"
           />
         </div>
