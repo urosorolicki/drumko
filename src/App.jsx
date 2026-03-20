@@ -11,6 +11,7 @@ import CreateTrip from './pages/CreateTrip'
 import TripDetail from './pages/TripDetail'
 import Support from './pages/Support'
 import Privacy from './pages/Privacy'
+import ResetPassword from './pages/ResetPassword'
 
 export default function App() {
   const location = useLocation()
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="/trips/:id" element={<AuthGuard><TripDetail /></AuthGuard>} />
         <Route path="/support" element={<Support />} />
         <Route path="/privacy" element={<Privacy />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
       </Routes>
     </AnimatePresence>
   )
