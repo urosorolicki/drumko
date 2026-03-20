@@ -34,12 +34,12 @@ export default function POILayer({ pois = [], onAddAsStop, visibleCategories = n
 export function POICategoryToggles({ categories, visibleCategories, onToggle }) {
   return (
     <div className="absolute top-4 right-4 z-[1000] bg-surface rounded-xl border border-border shadow-lg p-2 flex flex-col gap-1">
-      {categories.map(cat => {
-        const isActive = visibleCategories.includes(cat.key)
+      {Object.entries(categories).map(([key, cat]) => {
+        const isActive = visibleCategories.includes(key)
         return (
           <button
-            key={cat.key}
-            onClick={() => onToggle(cat.key)}
+            key={key}
+            onClick={() => onToggle(key)}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
               isActive
                 ? 'bg-primary/10 text-primary'

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import useTripStore from '../store/useTripStore'
+import useAuthStore from '../store/useAuthStore'
 import TripMap from '../components/Map/MapContainer'
 import { formatDistance, formatDuration } from '../utils/geoUtils'
 import { calculateTripDays, formatCurrency, getBudgetSummary } from '../utils/budgetUtils'
@@ -20,6 +21,7 @@ export default function TripDetail() {
   const trip = useTripStore(s => s.trips.find(t => t.id === id))
   const updateTrip = useTripStore(s => s.updateTrip)
   const deleteTrip = useTripStore(s => s.deleteTrip)
+  const user = useAuthStore(s => s.user)
   const togglePackingItem = useTripStore(s => s.togglePackingItem)
   const addExpense = useTripStore(s => s.addExpense)
   const removeExpense = useTripStore(s => s.removeExpense)
@@ -51,7 +53,7 @@ export default function TripDetail() {
 
   function handleDeleteTrip() {
     if (window.confirm(`Delete "${trip.name}"? This cannot be undone.`)) {
-      deleteTrip(id)
+      deleteTrip(id, user?.id)
       navigate('/trips')
     }
   }
@@ -153,7 +155,7 @@ export default function TripDetail() {
               key="packing"
               trip={trip}
               toggleItem={togglePackingItem}
-              updateTrip={updateTrip}
+              updateTrip={(tripId, updates) => updateTrip(tripId, updates, user?.id)}
             />
           )}
           {activeTab === 'budget' && (
@@ -416,8 +418,59 @@ function TabStops({ trip, routeStats, updateStop }) {
           <p className="text-sm">Add stops in the route step when editing the trip.</p>
         </div>
       )}
+
+      {/* Export to navigation apps */}
+      {trip.startCity?.lat && trip.endCity?.lat && (
+        <div className="mt-4 pt-4 border-t border-border">
+          <p className="text-xs text-muted font-semibold mb-2 uppercase tracking-wide">Navigacija</p>
+          <div className="flex gap-2">
+            <a
+              href={buildNavUrl('google', trip)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#4285F4] text-white text-sm font-bold rounded-2xl shadow-[0_4px_0_rgba(0,0,0,0.15)] hover:-translate-y-0.5 hover:shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-all cursor-pointer"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+              </svg>
+              Google Maps
+            </a>
+            <a
+              href={buildNavUrl('waze', trip)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#33CCFF] text-white text-sm font-bold rounded-2xl shadow-[0_4px_0_rgba(0,0,0,0.15)] hover:-translate-y-0.5 hover:shadow-[0_6px_0_rgba(0,0,0,0.15)] transition-all cursor-pointer"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 1.5C6.21 1.5 1.5 6.21 1.5 12S6.21 22.5 12 22.5 22.5 17.79 22.5 12 17.79 1.5 12 1.5zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 13.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+              </svg>
+              Waze
+            </a>
+          </div>
+        </div>
+      )}
     </motion.div>
   )
+}
+
+function buildNavUrl(app, trip) {
+  if (app === 'google') {
+    const origin = `${trip.startCity.lat},${trip.startCity.lng}`
+    const destination = `${trip.endCity.lat},${trip.endCity.lng}`
+    const waypoints = (trip.stops || []).map(s => `${s.lat},${s.lng}`).join('|')
+    const url = new URL('https://www.google.com/maps/dir/')
+    url.searchParams.set('api', '1')
+    url.searchParams.set('origin', origin)
+    url.searchParams.set('destination', destination)
+    if (waypoints) url.searchParams.set('waypoints', waypoints)
+    url.searchParams.set('travelmode', 'driving')
+    return url.toString()
+  }
+  // Waze: navigate to destination
+  const url = new URL('https://waze.com/ul')
+  url.searchParams.set('ll', `${trip.endCity.lat},${trip.endCity.lng}`)
+  url.searchParams.set('navigate', 'yes')
+  return url.toString()
 }
 
 /* ============================================================

@@ -1,122 +1,52 @@
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+import { supabase } from '../lib/supabase'
 
 // ---------------------------------------------------------------------------
-// Helper: generate a unique ID
+// Helpers
 // ---------------------------------------------------------------------------
 const uid = () =>
   typeof crypto !== 'undefined' && crypto.randomUUID
     ? crypto.randomUUID()
-    : Date.now().toString(36) + Math.random().toString(36).slice(2);
+    : Date.now().toString(36) + Math.random().toString(36).slice(2)
 
-// ---------------------------------------------------------------------------
-// Demo seed data
-// ---------------------------------------------------------------------------
-const createDemoTrip = () => ({
-  id: uid(),
-  name: 'Letovanje 2025 \u{1F30A}',
-  startDate: '2025-07-15',
-  endDate: '2025-07-22',
-  adults: 2,
-  children: 2,
-  startCity: { name: 'Beograd', lat: 44.7866, lng: 20.4489 },
-  endCity: { name: 'Split', lat: 43.5081, lng: 16.4402 },
-  stops: [
-    {
-      id: uid(),
-      name: 'Novi Sad',
-      lat: 45.2671,
-      lng: 19.8335,
-      note: 'Poseta Petrovaradinskoj tvrdjavi',
-      arrivalTime: '2025-07-15T10:00:00',
-      type: 'city',
-    },
-    {
-      id: uid(),
-      name: 'Zagreb',
-      lat: 45.815,
-      lng: 15.9819,
-      note: 'Rucak i razgledanje centra',
-      arrivalTime: '2025-07-16T14:00:00',
-      type: 'city',
-    },
-  ],
-  packingList: [
-    // Clothes
-    { id: uid(), category: 'Odeca', name: 'Majice (x5)', checked: true },
-    { id: uid(), category: 'Odeca', name: 'Sorts (x3)', checked: true },
-    { id: uid(), category: 'Odeca', name: 'Kupaci kostim', checked: false },
-    { id: uid(), category: 'Odeca', name: 'Sandale', checked: false },
-    // Toiletries
-    { id: uid(), category: 'Toalet', name: 'Krema za suncanje SPF50', checked: true },
-    { id: uid(), category: 'Toalet', name: 'Cetkica za zube', checked: false },
-    { id: uid(), category: 'Toalet', name: 'Sampon', checked: true },
-    // Electronics
-    { id: uid(), category: 'Elektronika', name: 'Punjac za telefon', checked: true },
-    { id: uid(), category: 'Elektronika', name: 'Power bank', checked: false },
-    { id: uid(), category: 'Elektronika', name: 'Slusalice', checked: true },
-    // Documents
-    { id: uid(), category: 'Dokumenta', name: 'Licna karta / pasos', checked: true },
-    { id: uid(), category: 'Dokumenta', name: 'Zdravstvena knjizica', checked: false },
-    { id: uid(), category: 'Dokumenta', name: 'Vozacka dozvola', checked: true },
-    // Other
-    { id: uid(), category: 'Ostalo', name: 'Rucnici za plazu', checked: false },
-    { id: uid(), category: 'Ostalo', name: 'Naocare za sunce', checked: true },
-  ],
-  budget: {
-    total: 150000,
-    currency: 'RSD',
-    categories: {
-      fuel: 40000,
-      accommodation: 50000,
-      food: 35000,
-      activities: 15000,
-      other: 10000,
-    },
-    expenses: [
-      {
-        id: uid(),
-        name: 'Gorivo do Novog Sada',
-        amount: 4500,
-        category: 'fuel',
-        date: '2025-07-15',
-      },
-      {
-        id: uid(),
-        name: 'Rucak u Zagrebu',
-        amount: 3200,
-        category: 'food',
-        date: '2025-07-16',
-      },
-      {
-        id: uid(),
-        name: 'Hotel Marjan Split (3 noci)',
-        amount: 42000,
-        category: 'accommodation',
-        date: '2025-07-17',
-      },
-      {
-        id: uid(),
-        name: 'Izlet na Hvar',
-        amount: 8000,
-        category: 'activities',
-        date: '2025-07-19',
-      },
-      {
-        id: uid(),
-        name: 'Gorivo Zagreb - Split',
-        amount: 6500,
-        category: 'fuel',
-        date: '2025-07-17',
-      },
-    ],
-  },
-  route: {
-    geometry: null,
-    totalDistance: 0,
-    totalDuration: 0,
-  },
-});
+// Map local camelCase trip → Supabase snake_case row
+function toRow(trip, userId) {
+  return {
+    id: trip.id,
+    user_id: userId,
+    name: trip.name,
+    start_date: trip.startDate,
+    end_date: trip.endDate,
+    adults: trip.adults,
+    children: trip.children,
+    start_city: trip.startCity,
+    end_city: trip.endCity,
+    stops: trip.stops,
+    route: trip.route,
+    packing_list: trip.packingList,
+    budget: trip.budget,
+    updated_at: new Date().toISOString(),
+  }
+}
+
+// Map Supabase row → local camelCase trip
+function fromRow(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    adults: row.adults ?? 1,
+    children: row.children ?? 0,
+    startCity: row.start_city,
+    endCity: row.end_city,
+    stops: row.stops ?? [],
+    route: row.route ?? { geometry: null, totalDistance: 0, totalDuration: 0 },
+    packingList: row.packing_list ?? [],
+    budget: row.budget ?? { total: 0, currency: 'RSD', categories: {}, expenses: [] },
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Store
@@ -124,40 +54,77 @@ const createDemoTrip = () => ({
 const useTripStore = create(
   persist(
     (set, get) => ({
-      // ── State ──────────────────────────────────────────────────────────
       trips: [],
       activeTripId: null,
 
+      // ── Supabase sync ──────────────────────────────────────────────────
+
+      /** Load all trips for the logged-in user from Supabase */
+      loadTrips: async (userId) => {
+        const { data, error } = await supabase
+          .from('trips')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+
+        if (error) { console.error('loadTrips:', error); return }
+        set({ trips: data.map(fromRow) })
+      },
+
+      /** Clear local store on sign-out */
+      clearTrips: () => set({ trips: [], activeTripId: null }),
+
       // ── Trip CRUD ──────────────────────────────────────────────────────
-      addTrip: (trip) =>
-        set((state) => ({
-          trips: [
-            ...state.trips,
-            { ...trip, id: trip.id || uid() },
-          ],
-        })),
 
-      updateTrip: (id, updates) =>
-        set((state) => ({
-          trips: state.trips.map((t) =>
-            t.id === id ? { ...t, ...updates } : t
-          ),
-        })),
+      addTrip: async (trip, userId) => {
+        const newTrip = { ...trip, id: trip.id || uid() }
+        // Optimistic local update
+        set((s) => ({ trips: [newTrip, ...s.trips] }))
+        // Persist to Supabase if logged in
+        if (userId) {
+          const { error } = await supabase.from('trips').insert(toRow(newTrip, userId))
+          if (error) console.error('addTrip:', error)
+        }
+        return newTrip
+      },
 
-      deleteTrip: (id) =>
-        set((state) => ({
-          trips: state.trips.filter((t) => t.id !== id),
-          activeTripId: state.activeTripId === id ? null : state.activeTripId,
-        })),
+      updateTrip: async (id, updates, userId) => {
+        // Optimistic local update
+        set((s) => ({
+          trips: s.trips.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+        }))
+        // Persist to Supabase if logged in
+        if (userId) {
+          const updated = get().trips.find((t) => t.id === id)
+          if (updated) {
+            const { error } = await supabase
+              .from('trips')
+              .update(toRow(updated, userId))
+              .eq('id', id)
+            if (error) console.error('updateTrip:', error)
+          }
+        }
+      },
+
+      deleteTrip: async (id, userId) => {
+        set((s) => ({
+          trips: s.trips.filter((t) => t.id !== id),
+          activeTripId: s.activeTripId === id ? null : s.activeTripId,
+        }))
+        if (userId) {
+          const { error } = await supabase.from('trips').delete().eq('id', id)
+          if (error) console.error('deleteTrip:', error)
+        }
+      },
 
       setActiveTrip: (id) => set({ activeTripId: id }),
-
       getTrip: (id) => get().trips.find((t) => t.id === id),
 
       // ── Stop management ────────────────────────────────────────────────
+
       addStop: (tripId, stop) =>
-        set((state) => ({
-          trips: state.trips.map((t) =>
+        set((s) => ({
+          trips: s.trips.map((t) =>
             t.id === tripId
               ? { ...t, stops: [...t.stops, { ...stop, id: stop.id || uid() }] }
               : t
@@ -165,8 +132,8 @@ const useTripStore = create(
         })),
 
       removeStop: (tripId, stopId) =>
-        set((state) => ({
-          trips: state.trips.map((t) =>
+        set((s) => ({
+          trips: s.trips.map((t) =>
             t.id === tripId
               ? { ...t, stops: t.stops.filter((s) => s.id !== stopId) }
               : t
@@ -174,157 +141,92 @@ const useTripStore = create(
         })),
 
       reorderStops: (tripId, stops) =>
-        set((state) => ({
-          trips: state.trips.map((t) =>
-            t.id === tripId ? { ...t, stops } : t
-          ),
+        set((s) => ({
+          trips: s.trips.map((t) => (t.id === tripId ? { ...t, stops } : t)),
         })),
 
       updateStop: (tripId, stopId, updates) =>
-        set((state) => ({
-          trips: state.trips.map((t) =>
+        set((s) => ({
+          trips: s.trips.map((t) =>
             t.id === tripId
-              ? {
-                  ...t,
-                  stops: t.stops.map((s) =>
-                    s.id === stopId ? { ...s, ...updates } : s
-                  ),
-                }
+              ? { ...t, stops: t.stops.map((st) => (st.id === stopId ? { ...st, ...updates } : st)) }
               : t
           ),
         })),
 
       // ── Packing list ───────────────────────────────────────────────────
+
       togglePackingItem: (tripId, itemId) =>
-        set((state) => ({
-          trips: state.trips.map((t) =>
+        set((s) => ({
+          trips: s.trips.map((t) =>
             t.id === tripId
-              ? {
-                  ...t,
-                  packingList: t.packingList.map((i) =>
-                    i.id === itemId ? { ...i, checked: !i.checked } : i
-                  ),
-                }
+              ? { ...t, packingList: t.packingList.map((i) => (i.id === itemId ? { ...i, checked: !i.checked } : i)) }
               : t
           ),
         })),
 
       addPackingItem: (tripId, item) =>
-        set((state) => ({
-          trips: state.trips.map((t) =>
+        set((s) => ({
+          trips: s.trips.map((t) =>
             t.id === tripId
-              ? {
-                  ...t,
-                  packingList: [
-                    ...t.packingList,
-                    { ...item, id: item.id || uid() },
-                  ],
-                }
+              ? { ...t, packingList: [...t.packingList, { ...item, id: item.id || uid() }] }
               : t
           ),
         })),
 
       removePackingItem: (tripId, itemId) =>
-        set((state) => ({
-          trips: state.trips.map((t) =>
+        set((s) => ({
+          trips: s.trips.map((t) =>
             t.id === tripId
-              ? {
-                  ...t,
-                  packingList: t.packingList.filter((i) => i.id !== itemId),
-                }
+              ? { ...t, packingList: t.packingList.filter((i) => i.id !== itemId) }
               : t
           ),
         })),
 
       setPackingList: (tripId, list) =>
-        set((state) => ({
-          trips: state.trips.map((t) =>
-            t.id === tripId ? { ...t, packingList: list } : t
-          ),
+        set((s) => ({
+          trips: s.trips.map((t) => (t.id === tripId ? { ...t, packingList: list } : t)),
         })),
 
       // ── Budget ─────────────────────────────────────────────────────────
+
       updateBudget: (tripId, budgetUpdates) =>
-        set((state) => ({
-          trips: state.trips.map((t) =>
-            t.id === tripId
-              ? { ...t, budget: { ...t.budget, ...budgetUpdates } }
-              : t
+        set((s) => ({
+          trips: s.trips.map((t) =>
+            t.id === tripId ? { ...t, budget: { ...t.budget, ...budgetUpdates } } : t
           ),
         })),
 
       addExpense: (tripId, expense) =>
-        set((state) => ({
-          trips: state.trips.map((t) =>
+        set((s) => ({
+          trips: s.trips.map((t) =>
             t.id === tripId
-              ? {
-                  ...t,
-                  budget: {
-                    ...t.budget,
-                    expenses: [
-                      ...t.budget.expenses,
-                      { ...expense, id: expense.id || uid() },
-                    ],
-                  },
-                }
+              ? { ...t, budget: { ...t.budget, expenses: [...t.budget.expenses, { ...expense, id: expense.id || uid() }] } }
               : t
           ),
         })),
 
       removeExpense: (tripId, expenseId) =>
-        set((state) => ({
-          trips: state.trips.map((t) =>
+        set((s) => ({
+          trips: s.trips.map((t) =>
             t.id === tripId
-              ? {
-                  ...t,
-                  budget: {
-                    ...t.budget,
-                    expenses: t.budget.expenses.filter(
-                      (e) => e.id !== expenseId
-                    ),
-                  },
-                }
+              ? { ...t, budget: { ...t.budget, expenses: t.budget.expenses.filter((e) => e.id !== expenseId) } }
               : t
           ),
         })),
 
       // ── Route ──────────────────────────────────────────────────────────
+
       updateRoute: (tripId, routeData) =>
-        set((state) => ({
-          trips: state.trips.map((t) =>
-            t.id === tripId
-              ? { ...t, route: { ...t.route, ...routeData } }
-              : t
+        set((s) => ({
+          trips: s.trips.map((t) =>
+            t.id === tripId ? { ...t, route: { ...t.route, ...routeData } } : t
           ),
         })),
-
-      // ── Seed ───────────────────────────────────────────────────────────
-      seedDemoData: () => {
-        const { trips } = get();
-        if (trips.length === 0) {
-          const demo = createDemoTrip();
-          set({ trips: [demo], activeTripId: demo.id });
-        }
-      },
     }),
-    {
-      name: 'trip-planner-storage',
-      onRehydrateStorage: () => (state) => {
-        // After rehydration, seed demo data if the store is empty.
-        if (state && state.trips.length === 0) {
-          state.seedDemoData();
-        }
-      },
-    }
+    { name: 'drumko-trips' }
   )
-);
+)
 
-// ---------------------------------------------------------------------------
-// Exports
-// ---------------------------------------------------------------------------
-
-// Raw store (for non-React usage: store.getState(), store.subscribe(), etc.)
-export const store = useTripStore;
-
-// React hook (default)
-export default useTripStore;
+export const store = useTripStore
+export default useTripStore

@@ -7,9 +7,8 @@ import { useState, useRef, useCallback } from 'react';
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org';
 const SEARCH_ENDPOINT = `${NOMINATIM_BASE}/search`;
 const REVERSE_ENDPOINT = `${NOMINATIM_BASE}/reverse`;
-const USER_AGENT = 'TripPlanner/1.0';
-const DEBOUNCE_MS = 400;
-const COUNTRY_CODES = 'rs,hr,si,ba,me,mk,al,bg,ro,hu,at,gr,it';
+const USER_AGENT = 'Drumko/1.0 (trip-planner)';
+const DEBOUNCE_MS = 300;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -22,8 +21,16 @@ const COUNTRY_CODES = 'rs,hr,si,ba,me,mk,al,bg,ro,hu,at,gr,it';
  * @returns {{ name: string, lat: number, lng: number, type: string }}
  */
 function mapResult(raw) {
+  const addr = raw.address || {}
+  const city = addr.city || addr.town || addr.village || addr.municipality || addr.county || raw.name
+  const country = addr.country || ''
+  const state = addr.state || addr.region || ''
+  const sub = [state, country].filter(Boolean).join(', ')
+
   return {
-    name: raw.display_name,
+    name: raw.display_name,       // full name kept for reference
+    city,                          // short primary label
+    sub,                           // "State, Country" secondary label
     lat: parseFloat(raw.lat),
     lng: parseFloat(raw.lon),
     type: raw.type,
@@ -157,9 +164,9 @@ export default function useNominatim() {
         const params = new URLSearchParams({
           format: 'json',
           q: trimmed,
-          limit: '5',
-          countrycodes: COUNTRY_CODES,
+          limit: '7',
           addressdetails: '1',
+          featuretype: 'settlement',
         });
 
         const res = await fetch(`${SEARCH_ENDPOINT}?${params}`, {

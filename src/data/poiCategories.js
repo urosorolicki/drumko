@@ -1,73 +1,103 @@
 /**
- * Point-of-Interest category definitions used throughout the app for map
- * markers, filters, and search queries against OpenStreetMap / Overpass API.
- *
- * Each entry carries display metadata (label, icon, colour) and an osmTag
- * string that can be split on "=" to get the Overpass tag/value pair.
+ * POI category definitions.
+ * Format: object keyed by category ID.
+ * Each entry has `tag` + `value` for Overpass QL queries,
+ * plus display metadata (label, icon, color).
  */
-const poiCategories = [
-  {
-    key: 'fuel',
-    label: 'Gas Stations',
-    icon: '\u26FD',
-    color: '#78716C',
-    osmTag: 'amenity=fuel',
+const poiCategories = {
+  // ── Gorivo & Servis ─────────────────────────────────────────────────────
+  fuel: {
+    tag: 'amenity', value: 'fuel',
+    label: 'Pumpe', icon: '⛽', color: '#78716C',
   },
-  {
-    key: 'restaurant',
-    label: 'Restaurants',
-    icon: '\uD83C\uDF7D\uFE0F',
-    color: '#F59E0B',
-    osmTag: 'amenity=restaurant',
+  car_wash: {
+    tag: 'amenity', value: 'car_wash',
+    label: 'Auto-praonice', icon: '🚿', color: '#0EA5E9',
   },
-  {
-    key: 'cafe',
-    label: 'Cafes',
-    icon: '\u2615',
-    color: '#D97706',
-    osmTag: 'amenity=cafe',
+
+  // ── Odmor & Odmarališta ──────────────────────────────────────────────────
+  rest_area: {
+    tag: 'highway', value: 'rest_area',
+    label: 'Odmarališta', icon: '🌿', color: '#22C55E',
   },
-  {
-    key: 'attraction',
-    label: 'Attractions',
-    icon: '\uD83C\uDFDB\uFE0F',
-    color: '#8B5CF6',
-    osmTag: 'tourism=attraction',
+  services: {
+    tag: 'highway', value: 'services',
+    label: 'Auto-servis stanice', icon: '🏪', color: '#6366F1',
   },
-  {
-    key: 'park',
-    label: 'Parks & Rest Areas',
-    icon: '\uD83C\uDF33',
-    color: '#22C55E',
-    osmTag: 'leisure=park',
+  picnic_site: {
+    tag: 'tourism', value: 'picnic_site',
+    label: 'Piknik mesta', icon: '🧺', color: '#84CC16',
   },
-  {
-    key: 'hotel',
-    label: 'Hotels',
-    icon: '\uD83C\uDFE8',
-    color: '#3B82F6',
-    osmTag: 'tourism=hotel',
+
+  // ── Hrana & Piće ────────────────────────────────────────────────────────
+  restaurant: {
+    tag: 'amenity', value: 'restaurant',
+    label: 'Restorani', icon: '🍽️', color: '#F59E0B',
   },
-];
+  fast_food: {
+    tag: 'amenity', value: 'fast_food',
+    label: 'Fast food', icon: '🍔', color: '#EF4444',
+  },
+  cafe: {
+    tag: 'amenity', value: 'cafe',
+    label: 'Kafići', icon: '☕', color: '#D97706',
+  },
+
+  // ── Smeštaj ─────────────────────────────────────────────────────────────
+  hotel: {
+    tag: 'tourism', value: 'hotel',
+    label: 'Hoteli', icon: '🏨', color: '#3B82F6',
+  },
+  motel: {
+    tag: 'tourism', value: 'motel',
+    label: 'Moteli', icon: '🛏️', color: '#60A5FA',
+  },
+  hostel: {
+    tag: 'tourism', value: 'hostel',
+    label: 'Hosteli', icon: '🏠', color: '#93C5FD',
+  },
+  camp_site: {
+    tag: 'tourism', value: 'camp_site',
+    label: 'Kampovi', icon: '⛺', color: '#16A34A',
+  },
+
+  // ── Atrakcije ───────────────────────────────────────────────────────────
+  attraction: {
+    tag: 'tourism', value: 'attraction',
+    label: 'Atrakcije', icon: '🏛️', color: '#8B5CF6',
+  },
+  viewpoint: {
+    tag: 'tourism', value: 'viewpoint',
+    label: 'Vidikovci', icon: '🔭', color: '#A78BFA',
+  },
+  museum: {
+    tag: 'tourism', value: 'museum',
+    label: 'Muzeji', icon: '🏺', color: '#7C3AED',
+  },
+
+  // ── Kupovina & Zdravlje ──────────────────────────────────────────────────
+  supermarket: {
+    tag: 'shop', value: 'supermarket',
+    label: 'Supermarketi', icon: '🛒', color: '#10B981',
+  },
+  pharmacy: {
+    tag: 'amenity', value: 'pharmacy',
+    label: 'Apoteke', icon: '💊', color: '#DC2626',
+  },
+}
 
 /**
  * Look up a POI category by its key.
- * @param {string} key
- * @returns {object|undefined} The matching category object, or undefined
  */
 export function getCategoryByKey(key) {
-  return poiCategories.find((cat) => cat.key === key);
+  return poiCategories[key]
 }
 
 /**
- * Get the colour associated with a POI category key.
- * Falls back to a neutral grey when the key is not found.
- * @param {string} key
- * @returns {string} CSS colour value
+ * Get the colour for a category key.
  */
 export function getCategoryColor(key) {
-  const category = getCategoryByKey(key);
-  return category ? category.color : '#9CA3AF';
+  return poiCategories[key]?.color ?? '#9CA3AF'
 }
 
-export default poiCategories;
+export default poiCategories

@@ -261,3 +261,35 @@ export function formatDuration(seconds) {
 
   return `${hours}h ${minutes}m`;
 }
+
+/**
+ * Given a POI (lat/lng) and GeoJSON route coordinates ([lng,lat] pairs),
+ * returns the approximate km mark along the route where the POI is closest.
+ * Used to sort POIs by their position along the route.
+ *
+ * @param {number} lat
+ * @param {number} lng
+ * @param {Array<[number,number]>} coordinates - GeoJSON [lng, lat] pairs
+ * @returns {number} km from start
+ */
+export function getRouteKm(lat, lng, coordinates) {
+  if (!coordinates || coordinates.length === 0) return 0;
+
+  let minDist = Infinity;
+  let minIdx = 0;
+
+  for (let i = 0; i < coordinates.length; i++) {
+    const dist = haversineDistance(lat, lng, coordinates[i][1], coordinates[i][0]);
+    if (dist < minDist) { minDist = dist; minIdx = i; }
+  }
+
+  let km = 0;
+  for (let i = 1; i <= minIdx; i++) {
+    km += haversineDistance(
+      coordinates[i - 1][1], coordinates[i - 1][0],
+      coordinates[i][1],     coordinates[i][0]
+    );
+  }
+  return Math.round(km);
+}
+

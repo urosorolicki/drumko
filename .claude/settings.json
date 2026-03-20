@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s https://api.github.com/repos/geoapify/geocoder-autocomplete/git/trees/master?recursive=1)",
+      "Bash(curl -s \"https://api.github.com/repos/geoapify/geocoder-autocomplete/contents/src\")",
+      "Bash(curl -s \"https://api.github.com/repos/geoapify/geocoder-autocomplete/contents/src/helpers\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/geoapify/geocoder-autocomplete/master/src/helpers/dom.helper.ts\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/geoapify/geocoder-autocomplete/master/src/helpers/places-api.helper.ts\")",
+      "Bash(curl -s https://api.github.com/repos/geoapify/geocoder-autocomplete/contents/docs-site/docs)",
+      "Bash(curl -s https://api.github.com/repos/geoapify/maps-api-code-samples/git/trees/main?recursive=1)",
+      "Bash(curl -s \"https://api.github.com/repos/geoapify/geocoder-autocomplete/contents/demo/places-seach-no-map-built-in-list\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/geoapify/geocoder-autocomplete/master/demo/places-seach-no-map-built-in-list/index.html\")",
+      "WebFetch(domain:web.archive.org)",
+      "Bash(cd /tmp)",
+      "Bash(curl -s \"https://registry.npmjs.org/@geoapify/geocoder-autocomplete/-/geocoder-autocomplete-3.0.1.tgz\" -o geocoder-autocomplete.tgz)",
+      "Bash(tar -tzf geocoder-autocomplete.tgz)",
+      "Bash(tar -xzf geocoder-autocomplete.tgz package/dist/helpers/category.helper.js)",
+      "Bash(grep -v \"\\\\.map$\")",
+      "Bash(curl -s \"https://apidocs.geoapify.com/docs/places/scripts.e40f4906a16a607e.js\")",
+      "Bash(curl -s \"https://apidocs.geoapify.com/docs/places/\")"
+    ]
+  }
+}

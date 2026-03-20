@@ -36,7 +36,10 @@ const QUERY_TIMEOUT_S = 30;
  * @returns {{ tag: string, value: string, label: string, icon: string } | undefined}
  */
 function resolveCategory(key) {
-  return poiCategories[key];
+  const cat = poiCategories[key];
+  if (!cat) return undefined;
+  // Normalize: poiCategories uses { tag, value } directly
+  return cat;
 }
 
 /**
@@ -51,7 +54,7 @@ function categoryFromTags(tags) {
   if (!tags) return 'other';
 
   for (const [key, cat] of Object.entries(poiCategories)) {
-    if (tags[cat.tag] === cat.value) return key;
+    if (cat.tag && cat.value && tags[cat.tag] === cat.value) return key;
   }
 
   return 'other';
@@ -77,7 +80,7 @@ function buildQuery(samplePoints, categories) {
   const unions = categories
     .map(
       (cat) =>
-        `  node["${cat.tag}"="${cat.value}"](around:${SEARCH_RADIUS_M},${coordStr});`
+        `  nwr["${cat.tag}"="${cat.value}"]["name"](around:${SEARCH_RADIUS_M},${coordStr});`
     )
     .join('\n');
 
