@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      width: 1200px;
+      height: 630px;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(150deg, #F97316 0%, #FDBA74 35%, #38BDF8 70%, #7DD3FC 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    /* Blobs */
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.12);
+    }
+    .blob-1 { width: 180px; height: 180px; top: -40px; left: -40px; }
+    .blob-2 { width: 120px; height: 120px; top: 60px; right: 80px; }
+    .blob-3 { width: 80px;  height: 80px;  bottom: 100px; left: 120px; }
+    .blob-4 { width: 240px; height: 240px; bottom: -80px; right: -60px; }
+
+    /* Road at the bottom */
+    .road {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 64px;
+      background: #44403C;
+    }
+    .road-line {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: repeating-linear-gradient(
+        to right,
+        #FDE68A 0px, #FDE68A 40px,
+        transparent 40px, transparent 65px
+      );
+    }
+
+    /* Car */
+    .car {
+      position: absolute;
+      bottom: 24px;
+      left: 80px;
+    }
+
+    /* Main content */
+    .content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      z-index: 10;
+    }
+
+    /* Logo icon */
+    .logo-icon {
+      width: 96px;
+      height: 96px;
+      background: rgba(255,255,255,0.92);
+      border-radius: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 0 rgba(0,0,0,0.12), 0 16px 40px rgba(0,0,0,0.12);
+    }
+
+    /* Title */
+    h1 {
+      font-size: 88px;
+      font-weight: 700;
+      color: white;
+      letter-spacing: 0.02em;
+      text-shadow: 0 4px 16px rgba(0,0,0,0.15);
+      line-height: 1;
+    }
+
+    /* Tagline */
+    p {
+      font-size: 28px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.9);
+      text-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      letter-spacing: 0.01em;
+    }
+
+    /* Pills */
+    .pills {
+      display: flex;
+      gap: 12px;
+      margin-top: 4px;
+    }
+    .pill {
+      background: rgba(255,255,255,0.22);
+      border: 2px solid rgba(255,255,255,0.4);
+      border-radius: 100px;
+      padding: 8px 20px;
+      font-size: 18px;
+      font-weight: 700;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+  <div class="blob blob-4"></div>
+
+  <div class="road">
+    <div class="road-line"></div>
+  </div>
+
+  <!-- Car SVG -->
+  <div class="car">
+    <svg width="110" height="55" viewBox="0 0 80 40">
+      <rect x="10" y="15" width="60" height="20" rx="5" fill="#EF4444"/>
+      <rect x="20" y="5" width="35" height="15" rx="3" fill="#EF4444"/>
+      <rect x="24" y="7" width="12" height="10" rx="1" fill="#BFDBFE"/>
+      <rect x="39" y="7" width="12" height="10" rx="1" fill="#BFDBFE"/>
+      <circle cx="22" cy="35" r="5" fill="#1C1917"/>
+      <circle cx="22" cy="35" r="2.5" fill="#78716C"/>
+      <circle cx="58" cy="35" r="5" fill="#1C1917"/>
+      <circle cx="58" cy="35" r="2.5" fill="#78716C"/>
+      <rect x="65" y="20" width="8" height="4" rx="1" fill="#FDBA74"/>
+    </svg>
+  </div>
+
+  <div class="content">
+    <div class="logo-icon">
+      <svg width="56" height="56" viewBox="0 0 64 64">
+        <rect width="64" height="64" rx="16" fill="#F97316"/>
+        <path d="M10 40h44l-5-14h-7l-3-7H25l-3 7h-7L10 40z" fill="white"/>
+        <circle cx="21" cy="42" r="5" fill="#1C1917"/>
+        <circle cx="43" cy="42" r="5" fill="#1C1917"/>
+        <rect x="27" y="29" width="10" height="7" rx="2" fill="#38BDF8"/>
+      </svg>
+    </div>
+
+    <h1>Drumko</h1>
+    <p>Planer porodičnih putovanja</p>
+
+    <div class="pills">
+      <div class="pill">Ruta</div>
+      <div class="pill">Budžet</div>
+      <div class="pill">Pakovanje</div>
+      <div class="pill">drumko.app</div>
+    </div>
+  </div>
+</body>
+</html>
