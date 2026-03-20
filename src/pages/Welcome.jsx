@@ -12,7 +12,7 @@ export default function Welcome() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="min-h-screen relative overflow-hidden flex flex-col"
+      className="h-screen relative overflow-hidden flex flex-col"
       style={{
         background: 'linear-gradient(150deg, #F97316 0%, #FDBA74 35%, #38BDF8 70%, #7DD3FC 100%)',
       }}
@@ -73,20 +73,20 @@ export default function Welcome() {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 z-20 relative pt-8 pb-32">
+      <div className="flex-1 flex flex-col items-center justify-center px-6 z-20 relative pt-4 sm:pt-8 pb-20 sm:pb-32">
 
         {/* Logo + title */}
         <motion.div
           initial={{ y: -30, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.15, type: 'spring', stiffness: 120, damping: 18 }}
-          className="text-center mb-8"
+          className="text-center mb-5 sm:mb-8"
         >
           <motion.div
             initial={{ scale: 0, rotate: -10 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ delay: 0.05, type: 'spring', stiffness: 260, damping: 18 }}
-            className="w-24 h-24 bg-white/90 backdrop-blur-sm rounded-3xl shadow-[0_6px_0_rgba(0,0,0,0.12),0_12px_32px_rgba(0,0,0,0.1)] flex items-center justify-center mx-auto mb-5"
+            className="w-20 h-20 sm:w-24 sm:h-24 bg-white/90 backdrop-blur-sm rounded-3xl shadow-[0_6px_0_rgba(0,0,0,0.12),0_12px_32px_rgba(0,0,0,0.1)] flex items-center justify-center mx-auto mb-3 sm:mb-5"
           >
             <svg width="52" height="52" viewBox="0 0 64 64">
               <rect width="64" height="64" rx="16" fill="#F97316"/>
@@ -98,7 +98,7 @@ export default function Welcome() {
           </motion.div>
 
           <h1
-            className="text-6xl md:text-7xl font-semibold text-white drop-shadow-lg mb-2"
+            className="text-5xl sm:text-6xl md:text-7xl font-semibold text-white drop-shadow-lg mb-2"
             style={{ fontFamily: 'Fredoka, sans-serif', letterSpacing: '0.02em' }}
           >
             Drumko
@@ -113,7 +113,7 @@ export default function Welcome() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.35, type: 'spring', stiffness: 200, damping: 22 }}
-          className="flex flex-col sm:flex-row items-center gap-3 justify-center mb-10"
+          className="flex flex-col sm:flex-row items-center gap-3 justify-center mb-6 sm:mb-10"
         >
           <motion.div whileTap={{ scale: 0.95 }}>
             <Link
