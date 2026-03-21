@@ -185,6 +185,15 @@ export default function CreateTrip() {
   // How many stop suggestions the user wants
   const [wantedStops, setWantedStops] = useState(3)
 
+  // Auto-fill trip name when both cities are selected and user hasn't typed anything
+  useEffect(() => {
+    if (form.startCity?.name && form.endCity?.name && !form.name) {
+      const start = form.startCity.name.split(',')[0].trim()
+      const end = form.endCity.name.split(',')[0].trim()
+      updateForm('name', `${start} → ${end}`)
+    }
+  }, [form.startCity, form.endCity])
+
   // Fetch route as soon as both cities are selected — no need to wait for step 1
   useEffect(() => {
     if (form.startCity?.lat && form.endCity?.lat) {
