@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import { motion } from 'motion/react'
 import useTripStore from '../store/useTripStore'
 import TripMap from '../components/Map/MapContainer'
 import { formatDistance, formatDuration } from '../utils/geoUtils'
@@ -8,10 +8,12 @@ import { calculateTripDays } from '../utils/budgetUtils'
 
 export default function SharedTrip() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const fetchSharedTrip = useTripStore((s) => s.fetchSharedTrip)
   const [trip, setTrip] = useState(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     fetchSharedTrip(id).then((data) => {
@@ -20,6 +22,44 @@ export default function SharedTrip() {
       setLoading(false)
     })
   }, [id])
+
+  useEffect(() => {
+    if (!trip) return
+    const start = trip.startCity?.name?.split(',')[0] || ''
+    const end = trip.endCity?.name?.split(',')[0] || ''
+    const title = start && end
+      ? `${start} → ${end} | Drumko`
+      : `${trip.name} | Drumko`
+    const desc = [
+      start && end ? `Ruta: ${start} → ${end}` : trip.name,
+      trip.stops?.length ? `${trip.stops.length} stanica` : null,
+      trip.route?.totalDistance ? formatDistance(trip.route.totalDistance) : null,
+    ].filter(Boolean).join(' · ')
+
+    document.title = title
+    const setMeta = (prop, val, attr = 'name') => {
+      let el = document.querySelector(`meta[${attr}="${prop}"]`)
+      if (!el) { el = document.createElement('meta'); el.setAttribute(attr, prop); document.head.appendChild(el) }
+      el.setAttribute('content', val)
+    }
+    setMeta('description', desc)
+    setMeta('og:title', title, 'property')
+    setMeta('og:description', desc, 'property')
+    setMeta('twitter:title', title)
+    setMeta('twitter:description', desc)
+
+    return () => { document.title = 'Drumko — Planiranje putovanja za porodicu | Besplatan planer' }
+  }, [trip])
+
+  function forkTrip() {
+    localStorage.setItem('drumko_fork_trip', JSON.stringify({
+      startCity: trip.startCity,
+      endCity: trip.endCity,
+      stops: trip.stops || [],
+    }))
+    setCopied(true)
+    setTimeout(() => navigate('/trips/new'), 600)
+  }
 
   if (loading) {
     return (
@@ -32,7 +72,11 @@ export default function SharedTrip() {
   if (notFound) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
-        <div className="text-5xl mb-4">🔒</div>
+        <div className="w-16 h-16 bg-muted/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted">
+            <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+          </svg>
+        </div>
         <h1 className="text-2xl font-bold text-text mb-2">Putovanje nije dostupno</h1>
         <p className="text-muted mb-6">Ovaj link nije aktivan ili putovanje više nije javno.</p>
         <Link to="/" className="px-6 py-3 bg-primary text-white font-bold rounded-xl">
@@ -54,17 +98,29 @@ export default function SharedTrip() {
       className="min-h-screen bg-background"
     >
       {/* Header */}
-      <div className="bg-white border-b border-border px-4 py-4 flex items-center justify-between">
-        <div>
+      <div className="bg-white border-b border-border px-4 py-4 flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <p className="text-xs text-muted font-medium mb-0.5">Podeljeno putovanje</p>
-          <h1 className="text-lg font-bold text-text leading-tight">{trip.name}</h1>
+          <h1 className="text-lg font-bold text-text leading-tight truncate">{trip.name}</h1>
         </div>
-        <Link
-          to="/"
-          className="px-4 py-2 bg-primary text-white text-sm font-bold rounded-xl whitespace-nowrap"
+        <motion.button
+          onClick={forkTrip}
+          className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-sm font-bold rounded-xl whitespace-nowrap flex-shrink-0"
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.96 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 22 }}
         >
-          Planiraj svoje
-        </Link>
+          {copied ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M5 13l4 4L19 7"/>
+            </svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+            </svg>
+          )}
+          {copied ? 'Kopirano!' : 'Kopiraj rutu'}
+        </motion.button>
       </div>
 
       <div className="max-w-2xl mx-auto p-4 space-y-4">
@@ -142,12 +198,26 @@ export default function SharedTrip() {
         <div className="bg-primary/10 rounded-2xl border-2 border-primary/20 p-5 text-center">
           <p className="font-bold text-text mb-1">Planiraj i ti svoje putovanje</p>
           <p className="text-sm text-muted mb-4">Besplatno — ruta, budžet i lista za pakovanje na jednom mestu.</p>
-          <Link
-            to="/"
-            className="inline-block px-8 py-3 bg-primary text-white font-bold rounded-xl shadow-[0_4px_0_rgba(234,88,12,0.4)]"
-          >
-            Otvori Drumko
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <motion.button
+              onClick={forkTrip}
+              className="inline-flex items-center justify-center gap-2 px-7 py-3 bg-primary text-white font-bold rounded-xl shadow-[0_4px_0_rgba(234,88,12,0.4)]"
+              whileHover={{ scale: 1.03, y: -1 }}
+              whileTap={{ scale: 0.96 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 22 }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+              </svg>
+              Kopiraj ovu rutu
+            </motion.button>
+            <Link
+              to="/"
+              className="inline-flex items-center justify-center gap-2 px-7 py-3 border-2 border-primary/30 text-primary font-bold rounded-xl"
+            >
+              Napravi novu rutu
+            </Link>
+          </div>
         </div>
 
       </div>

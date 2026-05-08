@@ -5,10 +5,10 @@ import poiCategories from '../../data/poiCategories'
 export default function StopPopup({ stop, index, onRemove, onNoteChange }) {
   return (
     <Popup>
-      <div className="p-3 min-w-[220px]">
+      <div className="p-3 w-[min(220px,72vw)]">
         <div className="flex items-center gap-2 mb-2">
           <span className="w-7 h-7 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center shrink-0">
-            {index < 0 ? '🏠' : index === 999 ? '🏁' : index + 1}
+            {index < 0 ? 'S' : index === 999 ? 'D' : index + 1}
           </span>
           <h3 className="font-semibold text-text text-sm leading-tight">{stop.name?.split(',')[0]}</h3>
         </div>
@@ -41,7 +41,6 @@ export function POIPopup({ poi, onAddAsStop }) {
   const [added, setAdded] = useState(false)
 
   const cat = poiCategories[poi.category]
-  const emoji = cat?.icon || '📍'
   const label = cat?.label || poi.category
 
   function handleAdd(e) {
@@ -54,9 +53,9 @@ export function POIPopup({ poi, onAddAsStop }) {
 
   return (
     <Popup>
-      <div className="p-3 min-w-[200px]">
+      <div className="p-3 w-[min(200px,68vw)]">
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-2xl">{emoji}</span>
+          <span className="w-3 h-3 rounded-full shrink-0" style={{ background: cat?.color ?? '#9CA3AF' }} />
           <div>
             <h3 className="font-bold text-text text-sm leading-tight">{poi.name}</h3>
             <p className="text-xs text-muted mt-0.5">{label}</p>

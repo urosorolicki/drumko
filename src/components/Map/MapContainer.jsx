@@ -5,6 +5,7 @@ import RoutePolyline from './RoutePolyline'
 import SearchBar from './SearchBar'
 import StopPopup, { POIPopup } from './StopPopup'
 import POILayer, { POICategoryToggles } from './POILayer'
+import CuratedStopLayer from './CuratedStopLayer'
 import ZoomControls from './ZoomControls'
 import TripStatsBar from './TripStatsBar'
 import poiCategories from '../../data/poiCategories'
@@ -14,12 +15,27 @@ const DEFAULT_ZOOM = 6
 const TILE_URL = 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/rastertiles/voyager/{z}/{x}/{y}.png'
 const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
 
+/** Force Leaflet to recalculate container size on mount — fixes blank map in tabs/animations */
+function MapAutoSize() {
+  const map = useMap()
+  useEffect(() => {
+    const id = setTimeout(() => map.invalidateSize(), 150)
+    return () => clearTimeout(id)
+  }, [map])
+  return null
+}
+
 /** Fit map to all points when they change */
 function FitBounds({ points }) {
   const map = useMap()
   useEffect(() => {
     if (points && points.length >= 2) {
-      map.fitBounds(points.map(p => [p.lat, p.lng]), { padding: [50, 50], maxZoom: 12 })
+      // Delay to let invalidateSize settle first so fitBounds uses correct container size
+      const id = setTimeout(() => {
+        map.invalidateSize()
+        map.fitBounds(points.map(p => [p.lat, p.lng]), { padding: [50, 50], maxZoom: 12 })
+      }, 200)
+      return () => clearTimeout(id)
     }
   }, [points, map])
   return null
@@ -83,7 +99,7 @@ function MapClickHandler({ onAddStop, enabled }) {
       number="+"
     >
       <Popup>
-        <div className="p-3 min-w-[180px]">
+        <div className="p-3 w-[min(180px,60vw)]">
           <p className="text-sm font-bold text-text mb-3">Dodaj stanicu ovde?</p>
           <div className="flex gap-2">
             <button
@@ -112,12 +128,14 @@ export default function TripMap({
   stops = [],
   route = null,
   pois = [],
+  curatedStops = [],
   onAddStop,
   onRemoveStop,
   onNoteChange,
   showSearch = true,
   showPOIs = true,
   showStats = true,
+  routeLoading = false,
   interactive = true,
   className = '',
   height = '500px',
@@ -159,6 +177,7 @@ export default function TripMap({
           dragging={interactive}
         >
           <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
+          <MapAutoSize />
 
           {allPoints.length >= 2 && <FitBounds points={allPoints} />}
 
@@ -197,6 +216,8 @@ export default function TripMap({
             <POILayer pois={pois} visibleCategories={visibleCategories} onAddAsStop={onAddStop} />
           )}
 
+          <CuratedStopLayer stops={curatedStops} onAddAsStop={onAddStop} />
+
           {showSearch && <SearchBar onSelect={handleSearchSelect} placeholder="Pretraži lokaciju..." />}
 
           <ZoomControls />
@@ -216,6 +237,7 @@ export default function TripMap({
           stops={stops}
           totalDistance={route?.totalDistance || 0}
           totalDuration={route?.totalDuration || 0}
+          loading={routeLoading}
         />
       )}
     </div>

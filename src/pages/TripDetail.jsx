@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, animate, useAnimationControls } from 'framer-motion'
 import useTripStore from '../store/useTripStore'
 import useAuthStore from '../store/useAuthStore'
 import TripMap from '../components/Map/MapContainer'
@@ -11,6 +11,7 @@ import { useTranslation } from '../hooks/useTranslation'
 import LanguageToggle from '../components/UI/LanguageToggle'
 import useNominatim from '../hooks/useNominatim'
 import useOSRM from '../hooks/useOSRM'
+import useCuratedStops from '../hooks/useCuratedStops'
 
 const TABS = ['overview', 'map', 'stops', 'packing', 'budget']
 
@@ -38,6 +39,13 @@ export default function TripDetail() {
     ? [trip.startCity, ...(trip.stops || []), trip.endCity].filter(Boolean)
     : []
   const routeStats = useRouteStats(trip?.route, routeWaypoints)
+
+  const { stops: curatedStops, fetchAlongRoute: fetchCuratedStops } = useCuratedStops()
+  useEffect(() => {
+    if (trip?.route?.geometry?.coordinates) {
+      fetchCuratedStops(trip.route.geometry.coordinates)
+    }
+  }, [trip?.route?.geometry])
 
   if (!trip) {
     return (
@@ -75,24 +83,27 @@ export default function TripDetail() {
       exit={{ opacity: 0 }}
       className="min-h-screen bg-background"
     >
-      {/* Header */}
-      <header className="bg-surface border-b border-border sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+      {/* ── Glass header ── */}
+      <header className="header-glass sticky top-0 z-50">
+        <div className="max-w-5xl mx-auto px-4 pt-3.5 pb-0">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
-              <Link to="/trips" className="text-muted hover:text-text transition-colors">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <Link
+                to="/trips"
+                className="w-9 h-9 flex items-center justify-center rounded-xl border border-border bg-surface/80 hover:border-secondary/40 hover:bg-secondary/5 transition-all text-muted hover:text-text cursor-pointer"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M15 18l-6-6 6-6"/>
                 </svg>
               </Link>
               <div>
-                <h1 className="text-lg font-bold text-text leading-tight">{trip.name}</h1>
-                <p className="text-xs text-muted">
+                <h1 className="text-base font-bold text-text leading-tight">{trip.name}</h1>
+                <p className="text-xs text-muted font-medium">
                   {trip.startCity?.name?.split(',')[0]} → {trip.endCity?.name?.split(',')[0]}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <LanguageToggle />
               <Link
                 to={`/trips/${id}/edit`}
@@ -104,18 +115,25 @@ export default function TripDetail() {
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-1 mt-4 overflow-x-auto">
+          <div className="flex gap-0.5 overflow-x-auto pb-0 -mx-1 px-1">
             {TABS.map(key => (
               <button
                 key={key}
                 onClick={() => setActiveTab(key)}
-                className={`px-4 py-1.5 rounded-lg whitespace-nowrap text-sm font-semibold transition-colors ${
+                className={`relative px-4 py-2.5 whitespace-nowrap text-sm font-semibold transition-colors cursor-pointer rounded-t-lg ${
                   activeTab === key
-                    ? 'bg-primary text-white'
-                    : 'text-muted hover:text-text hover:bg-background'
+                    ? 'text-primary'
+                    : 'text-muted hover:text-text'
                 }`}
               >
                 {t(key)}
+                {activeTab === key && (
+                  <motion.div
+                    layoutId="tab-indicator"
+                    className="absolute bottom-0 left-2 right-2 h-0.5 bg-primary rounded-full"
+                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                  />
+                )}
               </button>
             ))}
           </div>
@@ -143,6 +161,7 @@ export default function TripDetail() {
               trip={trip}
               routeStats={routeStats}
               updateStop={updateStop}
+              curatedStops={curatedStops}
             />
           )}
           {activeTab === 'stops' && (
@@ -195,13 +214,38 @@ export default function TripDetail() {
    ============================================================ */
 function ShareModal({ trip, onClose, onToggleShared }) {
   const [copied, setCopied] = useState(false)
+  const [enabling, setEnabling] = useState(false)
   const shareUrl = `${window.location.origin}/shared/${trip.id}`
+  const hasNativeShare = typeof navigator.share === 'function'
+
+  async function enableAndShare() {
+    if (!trip.isShared) {
+      setEnabling(true)
+      await onToggleShared(true)
+      setEnabling(false)
+    }
+  }
 
   function copyLink() {
     navigator.clipboard.writeText(shareUrl).then(() => {
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      setTimeout(() => setCopied(false), 2500)
     })
+  }
+
+  async function nativeShare() {
+    await enableAndShare()
+    navigator.share({
+      title: trip.name,
+      text: `Pogledaj moje putovanje — ${trip.name}`,
+      url: shareUrl,
+    }).catch(() => {})
+  }
+
+  function whatsappShare() {
+    enableAndShare()
+    const text = encodeURIComponent(`Pogledaj moje putovanje "${trip.name}" 🚗\n${shareUrl}`)
+    window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener')
   }
 
   return (
@@ -209,59 +253,140 @@ function ShareModal({ trip, onClose, onToggleShared }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
       onClick={onClose}
     >
       <motion.div
-        initial={{ scale: 0.92, y: 20 }}
-        animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.92, y: 20 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 26 }}
+        initial={{ y: 40, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 40, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 340, damping: 28 }}
         className="bg-white rounded-3xl shadow-[0_8px_0_rgba(0,0,0,0.12)] p-6 w-full max-w-sm"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-xl font-bold text-text mb-1">Podeli putovanje</h2>
-        <p className="text-sm text-muted mb-5">Svako sa linkom može da vidi ovo putovanje.</p>
-
-        {/* Toggle */}
-        <div className="flex items-center justify-between bg-surface rounded-2xl p-4 mb-4 border border-border">
+        <div className="flex items-start justify-between mb-4">
           <div>
-            <p className="text-sm font-semibold text-text">{trip.isShared ? 'Javno putovanje' : 'Privatno putovanje'}</p>
-            <p className="text-xs text-muted">{trip.isShared ? 'Link je aktivan' : 'Samo ti možeš da vidiš'}</p>
+            <h2 className="text-xl font-bold text-text">Podeli putovanje</h2>
+            <p className="text-sm text-muted mt-0.5 leading-snug">
+              {trip.isShared ? 'Link je aktivan — svako može da vidi.' : 'Aktiviraj link pa podeli.'}
+            </p>
           </div>
-          <button
-            onClick={() => onToggleShared(!trip.isShared)}
-            className={`w-12 h-6 rounded-full transition-colors relative ${trip.isShared ? 'bg-primary' : 'bg-border'}`}
-          >
-            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${trip.isShared ? 'left-6' : 'left-0.5'}`} />
+          <button onClick={onClose} className="text-muted hover:text-text transition-colors ml-4 mt-0.5">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
           </button>
         </div>
 
-        {/* Link */}
-        {trip.isShared && (
-          <div className="flex gap-2 mb-4">
-            <input
-              readOnly
-              value={shareUrl}
-              className="flex-1 px-3 py-2.5 text-xs border border-border rounded-xl bg-background text-muted font-mono truncate"
-            />
-            <button
-              onClick={copyLink}
-              className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-colors ${copied ? 'bg-success text-white' : 'bg-primary text-white'}`}
-            >
-              {copied ? 'Kopirano!' : 'Kopiraj'}
-            </button>
+        {/* Link row — always visible, enables on interaction */}
+        <div className="flex gap-2 mb-4">
+          <div
+            className="flex-1 px-3 py-2.5 text-xs border border-border rounded-xl bg-background text-muted font-mono truncate select-all cursor-text"
+            onClick={enableAndShare}
+          >
+            {shareUrl.replace('https://', '')}
           </div>
-        )}
+          <motion.button
+            onClick={async () => { await enableAndShare(); copyLink() }}
+            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap ${copied ? 'bg-success text-white' : 'bg-primary text-white'}`}
+            whileTap={{ scale: 0.95 }}
+            disabled={enabling}
+          >
+            {enabling ? '…' : copied ? '✓ OK' : 'Kopiraj'}
+          </motion.button>
+        </div>
 
-        <button
-          onClick={onClose}
-          className="w-full py-3 bg-surface border border-border rounded-xl text-sm font-semibold text-text"
-        >
-          Zatvori
-        </button>
+        {/* Share buttons */}
+        <div className={`grid gap-2 mb-4 ${hasNativeShare ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {hasNativeShare && (
+            <motion.button
+              onClick={nativeShare}
+              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+              className="flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-border text-sm font-semibold text-text"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"/>
+              </svg>
+              Podeli
+            </motion.button>
+          )}
+          <motion.button
+            onClick={whatsappShare}
+            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+            className="flex items-center justify-center gap-2 py-3 rounded-2xl border-2 text-sm font-semibold"
+            style={{ borderColor: '#25D366', color: '#25D366' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+              <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.532 5.862L.054 23.267a.75.75 0 00.917.963l5.656-1.483A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.907 0-3.692-.519-5.222-1.422l-.374-.222-3.878 1.017 1.033-3.77-.243-.386A9.953 9.953 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+            </svg>
+            WhatsApp
+          </motion.button>
+        </div>
+
+        {/* Visibility toggle — secondary */}
+        <div className="flex items-center justify-between bg-surface rounded-2xl px-4 py-3 border border-border">
+          <p className="text-xs text-muted">{trip.isShared ? 'Deljenje aktivno' : 'Deljenje isključeno'}</p>
+          <button
+            onClick={() => onToggleShared(!trip.isShared)}
+            className={`w-10 h-5 rounded-full transition-colors relative flex-shrink-0 ${trip.isShared ? 'bg-primary' : 'bg-border'}`}
+          >
+            <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${trip.isShared ? 'left-5' : 'left-0.5'}`} />
+          </button>
+        </div>
       </motion.div>
     </motion.div>
+  )
+}
+
+/* ============================================================
+   SHARED HELPERS
+   ============================================================ */
+
+function StatValue({ value }) {
+  const isNum = typeof value === 'number'
+  const [display, setDisplay] = useState(isNum ? 0 : value)
+
+  useEffect(() => {
+    if (!isNum) { setDisplay(value); return }
+    const controls = animate(0, value, {
+      duration: 0.65,
+      ease: [0.16, 1, 0.3, 1],
+      onUpdate: v => setDisplay(Math.round(v)),
+    })
+    return () => controls.stop()
+  }, [value, isNum])
+
+  return <>{display}</>
+}
+
+const CONFETTI_COLORS = ['#F97316', '#38BDF8', '#22C55E', '#A855F7', '#F59E0B', '#EC4899']
+
+function ConfettiBurst() {
+  const particles = Array.from({ length: 14 }, (_, i) => ({
+    id: i,
+    angle: (i / 14) * 360,
+    color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+    r: 40 + (i % 3) * 18,
+    size: 5 + (i % 3) * 2,
+  }))
+
+  return (
+    <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden rounded-2xl">
+      {particles.map(p => {
+        const rad = (p.angle * Math.PI) / 180
+        return (
+          <motion.span
+            key={p.id}
+            initial={{ x: 0, y: 0, scale: 1, opacity: 1 }}
+            animate={{ x: Math.cos(rad) * p.r, y: Math.sin(rad) * p.r, scale: 0, opacity: 0 }}
+            transition={{ duration: 0.55, ease: 'easeOut', delay: p.id * 0.018 }}
+            className="absolute rounded-full"
+            style={{ width: p.size, height: p.size, background: p.color }}
+          />
+        )
+      })}
+    </div>
   )
 }
 
@@ -281,15 +406,20 @@ function TabOverview({ trip, days, routeStats, packedCount, packingPct, budgetSu
       {/* Hero stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { key: 'days', value: days || '—', icon: '📅' },
-          { key: 'distance', value: routeStats.totalDistance || '—', icon: '🛣️' },
-          { key: 'driveTime', value: routeStats.totalDuration || '—', icon: '⏱️' },
-          { key: 'travelers', value: trip.adults + trip.children, icon: '👨‍👩‍👧' },
+          { key: 'days', value: days || '—', color: '#F97316', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> },
+          { key: 'distance', value: routeStats.totalDistance || '—', color: '#0EA5E9', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M3 12h3m12 0h3M12 3v3m0 12v3"/></svg> },
+          { key: 'driveTime', value: routeStats.totalDuration || '—', color: '#A855F7', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> },
+          { key: 'travelers', value: trip.adults + trip.children, color: '#22C55E', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg> },
         ].map(stat => (
-          <div key={stat.key} className="bg-surface border border-border rounded-xl p-4 text-center">
-            <div className="text-2xl mb-1">{stat.icon}</div>
-            <div className="text-xl font-bold text-text">{stat.value}</div>
-            <div className="text-xs font-medium text-text/70">{t(stat.key)}</div>
+          <div key={stat.key} className="bg-surface border border-border rounded-2xl p-4 text-center" style={{ boxShadow: '0 2px 8px rgba(15,23,42,0.05)' }}>
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center mx-auto mb-2"
+              style={{ background: `${stat.color}18`, color: stat.color }}
+            >
+              {stat.icon}
+            </div>
+            <div className="text-xl font-bold text-text leading-none mb-0.5"><StatValue value={stat.value} /></div>
+            <div className="text-[11px] font-medium text-muted">{t(stat.key)}</div>
           </div>
         ))}
       </div>
@@ -390,7 +520,7 @@ function TabOverview({ trip, days, routeStats, packedCount, packingPct, budgetSu
 /* ============================================================
    TAB: Map
    ============================================================ */
-function TabMap({ trip, routeStats, updateStop }) {
+function TabMap({ trip, routeStats, updateStop, curatedStops }) {
   function handleNoteChange(stopId, note) {
     updateStop(trip.id, stopId, { note })
   }
@@ -406,11 +536,12 @@ function TabMap({ trip, routeStats, updateStop }) {
         endCity={trip.endCity}
         stops={trip.stops}
         route={trip.route}
+        curatedStops={curatedStops}
         onNoteChange={handleNoteChange}
         showSearch={false}
         showPOIs={false}
         showStats={true}
-        height="600px"
+        height="min(580px, 65dvh)"
         className="rounded-2xl overflow-hidden border border-border shadow"
       />
     </motion.div>
@@ -505,7 +636,7 @@ function TabStops({ trip, routeStats, updateStop, updateTrip, addStop, removeSto
                   isEnd ? 'bg-secondary text-white' :
                   'bg-primary text-white'
                 }`}>
-                  {isStart ? '🏠' : isEnd ? '🏁' : i}
+                  {isStart ? 'S' : isEnd ? 'D' : i}
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -654,18 +785,96 @@ function buildNavUrl(app, trip) {
 
 // Emoji and gradient per category name
 const CATEGORY_STYLE = {
-  Dokumenti:              { emoji: '📄', gradient: 'from-blue-50 to-blue-100',     ring: 'ring-blue-200',   badge: 'bg-blue-100 text-blue-700' },
-  Deca:                   { emoji: '🧸', gradient: 'from-pink-50 to-pink-100',     ring: 'ring-pink-200',   badge: 'bg-pink-100 text-pink-700' },
-  Garderoba:              { emoji: '👕', gradient: 'from-purple-50 to-purple-100', ring: 'ring-purple-200', badge: 'bg-purple-100 text-purple-700' },
-  Auto:                   { emoji: '🔧', gradient: 'from-gray-50 to-gray-100',     ring: 'ring-gray-200',   badge: 'bg-gray-100 text-gray-700' },
-  'Hrana i piće':         { emoji: '🥪', gradient: 'from-amber-50 to-amber-100',   ring: 'ring-amber-200',  badge: 'bg-amber-100 text-amber-700' },
-  Zabava:                 { emoji: '🎮', gradient: 'from-green-50 to-green-100',   ring: 'ring-green-200',  badge: 'bg-green-100 text-green-700' },
-  'Toaletne potrepštine': { emoji: '🧴', gradient: 'from-teal-50 to-teal-100',     ring: 'ring-teal-200',   badge: 'bg-teal-100 text-teal-700' },
-  Ostalo:                 { emoji: '📦', gradient: 'from-orange-50 to-orange-100', ring: 'ring-orange-200', badge: 'bg-orange-100 text-orange-700' },
+  Dokumenti:              { dot: 'bg-blue-500',   gradient: 'from-blue-50 to-blue-100',     ring: 'ring-blue-200',   badge: 'bg-blue-100 text-blue-700' },
+  Deca:                   { dot: 'bg-pink-500',   gradient: 'from-pink-50 to-pink-100',     ring: 'ring-pink-200',   badge: 'bg-pink-100 text-pink-700' },
+  Garderoba:              { dot: 'bg-purple-500', gradient: 'from-purple-50 to-purple-100', ring: 'ring-purple-200', badge: 'bg-purple-100 text-purple-700' },
+  Auto:                   { dot: 'bg-gray-500',   gradient: 'from-gray-50 to-gray-100',     ring: 'ring-gray-200',   badge: 'bg-gray-100 text-gray-700' },
+  'Hrana i piće':         { dot: 'bg-amber-500',  gradient: 'from-amber-50 to-amber-100',   ring: 'ring-amber-200',  badge: 'bg-amber-100 text-amber-700' },
+  Zabava:                 { dot: 'bg-green-500',  gradient: 'from-green-50 to-green-100',   ring: 'ring-green-200',  badge: 'bg-green-100 text-green-700' },
+  'Toaletne potrepštine': { dot: 'bg-teal-500',   gradient: 'from-teal-50 to-teal-100',     ring: 'ring-teal-200',   badge: 'bg-teal-100 text-teal-700' },
+  Ostalo:                 { dot: 'bg-orange-500', gradient: 'from-orange-50 to-orange-100', ring: 'ring-orange-200', badge: 'bg-orange-100 text-orange-700' },
 }
 
 function getCatStyle(cat) {
   return CATEGORY_STYLE[cat] ?? CATEGORY_STYLE.Ostalo
+}
+
+function PackingItem({ item, onToggle, onRemove }) {
+  const controls = useAnimationControls()
+
+  function handleToggle() {
+    onToggle()
+    if (!item.checked) {
+      controls.start({
+        scale: [1, 1.3, 0.92, 1],
+        transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] },
+      })
+    }
+  }
+
+  return (
+    <motion.div
+      layout
+      className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+        item.checked ? 'bg-success/5' : 'hover:bg-background'
+      }`}
+    >
+      <motion.button
+        animate={controls}
+        whileTap={{ scale: 0.82 }}
+        onClick={handleToggle}
+        className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+          item.checked
+            ? 'bg-success border-success text-white'
+            : 'border-border hover:border-primary'
+        }`}
+      >
+        <AnimatePresence mode="wait">
+          {item.checked && (
+            <motion.svg
+              key="check"
+              initial={{ scale: 0, rotate: -30 }}
+              animate={{ scale: 1, rotate: 0 }}
+              exit={{ scale: 0 }}
+              transition={{ type: 'spring', stiffness: 520, damping: 20 }}
+              width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"
+            >
+              <path d="M20 6L9 17l-5-5"/>
+            </motion.svg>
+          )}
+        </AnimatePresence>
+      </motion.button>
+
+      <span className="relative flex-1">
+        <span className={`text-sm font-medium transition-colors duration-200 ${
+          item.checked ? 'text-muted' : 'text-text'
+        }`}>
+          {item.name}
+        </span>
+        <AnimatePresence>
+          {item.checked && (
+            <motion.span
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              exit={{ scaleX: 0 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+              className="absolute left-0 top-1/2 h-0.5 w-full bg-muted/50 rounded-full"
+              style={{ translateY: '-50%', originX: 0 }}
+            />
+          )}
+        </AnimatePresence>
+      </span>
+
+      <button
+        onClick={onRemove}
+        className="text-border hover:text-danger transition-colors p-1 shrink-0"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </motion.div>
+  )
 }
 
 function TabPacking({ trip, toggleItem, updateTrip }) {
@@ -719,10 +928,21 @@ function TabPacking({ trip, toggleItem, updateTrip }) {
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            className="mb-5 p-5 rounded-2xl text-center"
+            transition={{ type: 'spring', stiffness: 340, damping: 24 }}
+            className="mb-5 p-5 rounded-2xl text-center relative"
             style={{ background: 'linear-gradient(135deg, #22C55E20, #38BDF820)' }}
           >
-            <div className="text-4xl mb-2">🎉</div>
+            <ConfettiBurst />
+            <div className="w-12 h-12 bg-success/20 rounded-full flex items-center justify-center mx-auto mb-2">
+              <motion.svg
+                initial={{ scale: 0, rotate: -45 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 20, delay: 0.1 }}
+                width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2.5"
+              >
+                <path d="M20 6L9 17l-5-5"/>
+              </motion.svg>
+            </div>
             <p className="font-bold text-text text-lg">All packed!</p>
             <p className="text-sm text-muted">You're ready to hit the road!</p>
           </motion.div>
@@ -731,14 +951,9 @@ function TabPacking({ trip, toggleItem, updateTrip }) {
 
       {/* Fun progress header */}
       <div className="bg-surface border border-border rounded-2xl p-5 mb-5">
-        <div className="flex items-end justify-between mb-3">
-          <div>
-            <p className="text-3xl font-extrabold text-text">{pct}<span className="text-xl text-muted">%</span></p>
-            <p className="text-sm text-muted">{packedItems} of {totalItems} packed</p>
-          </div>
-          <div className="text-right">
-            <p className="text-4xl">{pct < 30 ? '🧳' : pct < 60 ? '🚗' : pct < 100 ? '🏃' : '🏖️'}</p>
-          </div>
+        <div className="mb-3">
+          <p className="text-3xl font-extrabold text-text">{pct}<span className="text-xl text-muted">%</span></p>
+          <p className="text-sm text-muted">{packedItems} of {totalItems} packed</p>
         </div>
 
         {/* Chunky progress bar */}
@@ -756,9 +971,9 @@ function TabPacking({ trip, toggleItem, updateTrip }) {
         <div className="flex items-center justify-between mt-4">
           <div className="flex gap-1.5">
             {[
-              { key: 'all', label: '🗂 All' },
-              { key: 'unpacked', label: '⬜ Todo' },
-              { key: 'packed', label: '✅ Done' },
+              { key: 'all', label: 'Sve' },
+              { key: 'unpacked', label: 'Todo' },
+              { key: 'packed', label: 'Done' },
             ].map(f => (
               <button
                 key={f.key}
@@ -826,14 +1041,18 @@ function TabPacking({ trip, toggleItem, updateTrip }) {
                 onClick={() => toggleCat(cat)}
                 className={`w-full flex items-center gap-3 p-4 bg-gradient-to-r ${catStyle.gradient} hover:opacity-90 transition-opacity`}
               >
-                <span className="text-2xl">{catStyle.emoji}</span>
+                <span className={`w-3 h-3 rounded-full shrink-0 ${catStyle.dot}`} />
                 <div className="flex-1 text-left">
                   <span className="font-bold text-text">{cat}</span>
                   <span className={`ml-2 text-xs font-semibold px-2 py-0.5 rounded-full ${catStyle.badge}`}>
                     {catPacked}/{catItems.length}
                   </span>
                 </div>
-                {allCatDone && <span className="text-lg">✅</span>}
+                {allCatDone && (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2.5">
+                    <path d="M20 6L9 17l-5-5"/>
+                  </svg>
+                )}
                 <svg
                   width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                   className={`text-muted transition-transform ${isExpanded ? 'rotate-180' : ''}`}
@@ -853,49 +1072,12 @@ function TabPacking({ trip, toggleItem, updateTrip }) {
                   >
                     <div className="divide-y divide-border">
                       {catItems.map(item => (
-                        <motion.div
+                        <PackingItem
                           key={item.id}
-                          layout
-                          className={`flex items-center gap-3 px-4 py-3 transition-colors ${
-                            item.checked ? 'bg-success/5' : 'hover:bg-background'
-                          }`}
-                        >
-                          {/* Big tap-friendly checkbox */}
-                          <motion.button
-                            whileTap={{ scale: 0.8 }}
-                            onClick={() => toggleItem(trip.id, item.id)}
-                            className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                              item.checked
-                                ? 'bg-success border-success text-white'
-                                : 'border-border hover:border-primary'
-                            }`}
-                          >
-                            {item.checked && (
-                              <motion.svg
-                                initial={{ scale: 0 }}
-                                animate={{ scale: 1 }}
-                                width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"
-                              >
-                                <path d="M20 6L9 17l-5-5"/>
-                              </motion.svg>
-                            )}
-                          </motion.button>
-
-                          <span className={`flex-1 text-sm font-medium transition-all ${
-                            item.checked ? 'line-through text-muted' : 'text-text'
-                          }`}>
-                            {item.name}
-                          </span>
-
-                          <button
-                            onClick={() => removeItem(item.id)}
-                            className="text-border hover:text-danger transition-colors p-1"
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M18 6L6 18M6 6l12 12"/>
-                            </svg>
-                          </button>
-                        </motion.div>
+                          item={item}
+                          onToggle={() => toggleItem(trip.id, item.id)}
+                          onRemove={() => removeItem(item.id)}
+                        />
                       ))}
                     </div>
                   </motion.div>
@@ -1113,7 +1295,7 @@ function TabBudget({ trip, addExpense, removeExpense }) {
             return (
               <div key={key}>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-base shrink-0">{meta?.emoji}</span>
+                  <span className="w-3 h-3 rounded-full shrink-0" style={{ background: meta?.color ?? '#9CA3AF' }} />
                   <span className="text-sm font-medium text-text flex-1 min-w-0 truncate">{catLabel(key)}</span>
                   <div className="flex items-center gap-1 shrink-0">
                     <span className={`text-xs font-bold ${overBudget ? 'text-danger' : 'text-text'}`}>
@@ -1190,7 +1372,7 @@ function TabBudget({ trip, addExpense, removeExpense }) {
             className="w-full px-3 py-2.5 border border-border rounded-xl bg-background text-sm text-text"
           >
             {Object.entries(CAT_META).map(([k, m]) => (
-              <option key={k} value={k}>{m.emoji} {catLabel(k)}</option>
+              <option key={k} value={k}>{catLabel(k)}</option>
             ))}
           </select>
           <motion.button
@@ -1215,7 +1397,7 @@ function TabBudget({ trip, addExpense, removeExpense }) {
           <div className="space-y-1">
             {[...expenses].reverse().map(expense => (
               <div key={expense.id} className="flex items-center gap-3 py-2.5 border-b border-border last:border-0">
-                <span className="text-lg shrink-0">{CAT_META[expense.category]?.emoji ?? '📦'}</span>
+                <span className="w-3 h-3 rounded-full shrink-0 mt-0.5" style={{ background: CAT_META[expense.category]?.color ?? '#A8A29E' }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-text truncate">{expense.name}</p>
                   <p className="text-xs text-muted">

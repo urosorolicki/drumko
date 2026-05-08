@@ -57,7 +57,7 @@ export default function SearchBar({ onSelect, placeholder = 'Search location...'
   return (
     <div
       ref={wrapperRef}
-      className="absolute top-4 left-4 z-[1000] w-72 md:w-80"
+      className="absolute top-3 left-3 right-3 z-[1000] sm:right-auto sm:w-72 md:w-80"
       onMouseDown={stopPropagation}
       onDoubleClick={stopPropagation}
     >

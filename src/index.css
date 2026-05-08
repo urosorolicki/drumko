@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 @theme {
+  --breakpoint-xs: 480px;
   --font-sans: 'Nunito', system-ui, sans-serif;
   --font-display: 'Fredoka', system-ui, sans-serif;
   --color-primary: #F97316;

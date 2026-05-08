@@ -13,6 +13,7 @@ import Support from './pages/Support'
 import Privacy from './pages/Privacy'
 import ResetPassword from './pages/ResetPassword'
 import SharedTrip from './pages/SharedTrip'
+import Admin from './pages/Admin'
 
 export default function App() {
   const location = useLocation()
@@ -61,6 +62,7 @@ export default function App() {
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/shared/:id" element={<SharedTrip />} />
+        <Route path="/admin/stops" element={<Admin />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AnimatePresence>

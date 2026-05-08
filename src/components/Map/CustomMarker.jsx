@@ -10,8 +10,8 @@ import { Marker } from 'react-leaflet'
  * @param {string} options.category - POI category key
  */
 function createIcon(type, options = {}) {
-  const size = type === 'poi' ? [24, 24] : [36, 44]
-  const anchor = type === 'poi' ? [12, 12] : [18, 44]
+  const size = type === 'poi' ? [44, 44] : [36, 44]
+  const anchor = type === 'poi' ? [22, 22] : [18, 44]
 
   let svg = ''
 
@@ -21,7 +21,7 @@ function createIcon(type, options = {}) {
         <path d="M18 0C8.06 0 0 8.06 0 18c0 12.6 18 26 18 26s18-13.4 18-26C36 8.06 27.94 0 18 0z" fill="#22C55E"/>
         <path d="M18 0C8.06 0 0 8.06 0 18c0 12.6 18 26 18 26s18-13.4 18-26C36 8.06 27.94 0 18 0z" fill="rgba(0,0,0,0.1)"/>
         <circle cx="18" cy="17" r="11" fill="white"/>
-        <path d="M13 21v-8l4-3 4 3v8h-3v-4h-2v4z" fill="#22C55E"/>
+        <text x="18" y="22" text-anchor="middle" font-size="13" font-weight="700" font-family="Plus Jakarta Sans,sans-serif" fill="#22C55E">A</text>
       </svg>`
       break
 
@@ -30,7 +30,7 @@ function createIcon(type, options = {}) {
         <path d="M18 0C8.06 0 0 8.06 0 18c0 12.6 18 26 18 26s18-13.4 18-26C36 8.06 27.94 0 18 0z" fill="#3B82F6"/>
         <path d="M18 0C8.06 0 0 8.06 0 18c0 12.6 18 26 18 26s18-13.4 18-26C36 8.06 27.94 0 18 0z" fill="rgba(0,0,0,0.1)"/>
         <circle cx="18" cy="17" r="11" fill="white"/>
-        <path d="M13 10h2v14h-2zM15 10h8v4h-8zM15 14h6v3h-6z" fill="#3B82F6"/>
+        <text x="18" y="22" text-anchor="middle" font-size="13" font-weight="700" font-family="Plus Jakarta Sans,sans-serif" fill="#3B82F6">B</text>
       </svg>`
       break
 
@@ -54,10 +54,13 @@ function createIcon(type, options = {}) {
         hotel: '#3B82F6',
       }
       const color = categoryColors[options.category] || '#F97316'
-      svg = `<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="12" cy="12" r="10" fill="${color}" opacity="0.9"/>
-        <circle cx="12" cy="12" r="5" fill="white"/>
-      </svg>`
+      // 44×44 touch target, visual dot centered inside
+      svg = `<div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;">
+        <svg width="26" height="26" viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="13" cy="13" r="11" fill="${color}" opacity="0.92"/>
+          <circle cx="13" cy="13" r="5.5" fill="white"/>
+        </svg>
+      </div>`
       break
     }
 
@@ -73,7 +76,7 @@ function createIcon(type, options = {}) {
     className: '',
     iconSize: size,
     iconAnchor: anchor,
-    popupAnchor: [0, type === 'poi' ? -12 : -44],
+    popupAnchor: [0, type === 'poi' ? -22 : -44],
   })
 }
 
