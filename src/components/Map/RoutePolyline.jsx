@@ -50,8 +50,11 @@ export default function RoutePolyline({ map, geometry, color = '#F97316' }) {
     }
 
     return () => {
-      LAYERS.forEach(id => { if (map.getLayer(id)) map.removeLayer(id) })
-      if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID)
+      try {
+        if (!map || !map.getStyle) return
+        LAYERS.forEach(id => { if (map.getLayer(id)) map.removeLayer(id) })
+        if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID)
+      } catch (_) { /* map already removed by parent */ }
     }
   }, [map, geometry])
 

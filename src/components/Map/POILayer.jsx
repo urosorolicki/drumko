@@ -150,10 +150,13 @@ export default function POILayer({ map, pois = [], visibleCategories, onAddAsSto
     }
 
     return () => {
-      for (const id of ['poi-cluster-count', 'poi-clusters', 'poi-points']) {
-        if (map.getLayer(id)) map.removeLayer(id)
-      }
-      if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID)
+      try {
+        if (!map || !map.getStyle) return
+        for (const id of ['poi-cluster-count', 'poi-clusters', 'poi-points']) {
+          if (map.getLayer(id)) map.removeLayer(id)
+        }
+        if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID)
+      } catch (_) { /* map already removed by parent */ }
     }
   }, [map]) // eslint-disable-line react-hooks/exhaustive-deps
 

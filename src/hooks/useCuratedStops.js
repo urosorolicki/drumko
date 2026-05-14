@@ -3,6 +3,26 @@ import { supabase } from '../lib/supabase'
 
 const ROUTE_BUFFER = 0.15 // ~15 km buffer around route bbox
 
+export async function fetchScoredStops({ bbox, hasKids = false, minKidAge = 99, timeOfDay = 'lunch', season = 'summer', corridor = null }) {
+  if (!bbox) return []
+  const { data, error } = await supabase.rpc('get_stops_for_trip', {
+    min_lat: bbox.minLat,
+    max_lat: bbox.maxLat,
+    min_lng: bbox.minLng,
+    max_lng: bbox.maxLng,
+    has_kids: hasKids,
+    min_kid_age: minKidAge ?? 99,
+    time_of_day: timeOfDay,
+    season,
+    corridor,
+  })
+  if (error) {
+    console.warn('[fetchScoredStops]', error.message)
+    return []
+  }
+  return data ?? []
+}
+
 export default function useCuratedStops() {
   const [stops, setStops] = useState([])
   const [loading, setLoading] = useState(false)
