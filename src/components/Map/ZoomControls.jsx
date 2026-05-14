@@ -1,16 +1,8 @@
-import { useMap } from 'react-leaflet'
-
-/**
- * Custom zoom controls positioned at bottom-right of the map.
- * White rounded buttons with + and - icons.
- */
-export default function ZoomControls() {
-  const map = useMap()
-
+export default function ZoomControls({ map }) {
   return (
     <div className="absolute bottom-6 right-4 z-[1000] flex flex-col gap-1.5">
       <button
-        onClick={() => map.zoomIn()}
+        onClick={() => map?.zoomIn()}
         className="w-11 h-11 bg-surface rounded-xl border border-border shadow-md flex items-center justify-center text-text hover:bg-background active:scale-95 transition-all touch-manipulation"
         aria-label="Uvećaj"
       >
@@ -19,7 +11,7 @@ export default function ZoomControls() {
         </svg>
       </button>
       <button
-        onClick={() => map.zoomOut()}
+        onClick={() => map?.zoomOut()}
         className="w-11 h-11 bg-surface rounded-xl border border-border shadow-md flex items-center justify-center text-text hover:bg-background active:scale-95 transition-all touch-manipulation"
         aria-label="Umanji"
       >

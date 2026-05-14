@@ -1,19 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
-import { useMap } from 'react-leaflet'
 import useNominatim from '../../hooks/useNominatim'
+import { track } from '../../lib/analytics'
 
-/**
- * Floating search bar for the map. Uses Nominatim for geocoding.
- * Restricted to Balkan + surrounding countries.
- */
-export default function SearchBar({ onSelect, placeholder = 'Search location...' }) {
+export default function SearchBar({ map, onSelect, placeholder = 'Search location...' }) {
   const [query, setQuery] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const { search, results, loading, clearResults } = useNominatim({ featuretype: null })
-  const map = useMap()
   const wrapperRef = useRef(null)
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(e) {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
@@ -40,32 +34,27 @@ export default function SearchBar({ onSelect, placeholder = 'Search location...'
     setQuery(result.city || result.name.split(',')[0])
     setIsOpen(false)
     clearResults()
-
-    // Fly to location
-    map.flyTo([result.lat, result.lng], 13, { duration: 1.5 })
-
-    if (onSelect) {
-      onSelect(result)
-    }
-  }
-
-  // Stop map events from propagating through the search bar
-  function stopPropagation(e) {
-    e.stopPropagation()
+    map?.flyTo({ center: [result.lng, result.lat], zoom: 13, duration: 1500 })
+    track('custom_stop_added', {
+      lat: Number(Number(result.lat).toFixed(5)),
+      lng: Number(Number(result.lng).toFixed(5)),
+      near_city: result.city || result.name?.split(',')[0] || null,
+      source: 'search',
+    })
+    onSelect?.(result)
   }
 
   return (
     <div
       ref={wrapperRef}
       className="absolute top-3 left-3 right-3 z-[1000] sm:right-auto sm:w-72 md:w-80"
-      onMouseDown={stopPropagation}
-      onDoubleClick={stopPropagation}
+      onMouseDown={e => e.stopPropagation()}
+      onDoubleClick={e => e.stopPropagation()}
     >
       <div className="relative">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.3-4.3"/>
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
           </svg>
         </span>
         <input

@@ -19,6 +19,7 @@ import useAuthStore from '../store/useAuthStore'
 import { getRouteKm } from '../utils/geoUtils'
 import useSmartStops from '../hooks/useSmartStops'
 import useCuratedStops from '../hooks/useCuratedStops'
+import { track } from '../lib/analytics'
 
 const STEPS = ['stepBasics', 'stepRoute', 'stepPacking', 'stepBudget']
 
@@ -80,6 +81,27 @@ const POI_STYLE = {
   pharmacy:    { dot: 'bg-rose-500',     label: 'Apoteka',         color: 'bg-rose-100 text-rose-700',      border: 'border-rose-200' },
   stop:        { dot: 'bg-primary',      label: 'Stanica',  color: 'bg-primary/10 text-primary',     border: 'border-primary/20' },
   park:        { dot: 'bg-green-500',   label: 'Park',     color: 'bg-green-100 text-green-700',    border: 'border-green-200' },
+}
+
+const TRIP_INTERESTS = [
+  { key: 'hrana',    label: 'Hrana',    poiKeys: ['restaurant', 'fast_food', 'cafe'],             curatedKeys: ['food', 'restaurant'] },
+  { key: 'gorivo',   label: 'Gorivo',   poiKeys: ['fuel', 'car_wash', 'services', 'rest_area'],   curatedKeys: [] },
+  { key: 'smestaj',  label: 'Smeštaj',  poiKeys: ['hotel', 'motel', 'hostel', 'camp_site'],       curatedKeys: ['accommodation'] },
+  { key: 'kultura',  label: 'Kultura',  poiKeys: ['attraction', 'museum'],                         curatedKeys: ['culture', 'history', 'monastery', 'museum'] },
+  { key: 'priroda',  label: 'Priroda',  poiKeys: ['viewpoint', 'picnic_site'],                    curatedKeys: ['nature', 'national_park', 'waterfall'] },
+  { key: 'plaze',    label: 'Plaže',    poiKeys: [],                                               curatedKeys: ['beach'] },
+  { key: 'kupovina', label: 'Kupovina', poiKeys: ['supermarket'],                                  curatedKeys: [] },
+  { key: 'zdravlje', label: 'Zdravlje', poiKeys: ['pharmacy'],                                     curatedKeys: ['wellness'] },
+]
+
+function filterByInterests(pois, curatedStops, interests) {
+  if (!interests || interests.length === 0) return { pois, curatedStops }
+  const allowedPoi = new Set(interests.flatMap(k => TRIP_INTERESTS.find(i => i.key === k)?.poiKeys ?? []))
+  const allowedCurated = new Set(interests.flatMap(k => TRIP_INTERESTS.find(i => i.key === k)?.curatedKeys ?? []))
+  return {
+    pois: pois.filter(p => allowedPoi.has(p.category)),
+    curatedStops: curatedStops.filter(s => allowedCurated.has(s.category)),
+  }
 }
 
 const STEP_META = [
@@ -173,6 +195,7 @@ export default function CreateTrip() {
         expenses: [],
       },
       route: { geometry: null, totalDistance: 0, totalDuration: 0 },
+      interests: [],
     }
     try {
       const fork = localStorage.getItem('drumko_fork_trip')
@@ -193,7 +216,7 @@ export default function CreateTrip() {
   }, [existingTrip])
 
   // Routing
-  const { fetchRoute, route: routeData, loading: routeLoading } = useOSRM()
+  const { fetchRoute, route: routeData, loading: routeLoading, error: routeError } = useOSRM()
   const { fetchPOIs, pois, loading: poisLoading, error: poisError } = useGeoapify()
   const { buildSuggestions, suggestions, loading: smartLoading } = useSmartStops()
   const { stops: curatedStops, fetchAlongRoute: fetchCuratedStops } = useCuratedStops()
@@ -215,8 +238,20 @@ export default function CreateTrip() {
   useEffect(() => {
     if (!form.startCity?.lat || !form.endCity?.lat) return
     clearTimeout(routeDebounceRef.current)
-    routeDebounceRef.current = setTimeout(() => {
-      fetchRoute([form.startCity, ...form.stops, form.endCity])
+    routeDebounceRef.current = setTimeout(async () => {
+      const result = await fetchRoute([form.startCity, ...form.stops, form.endCity])
+      if (result) {
+        track('route_planned', {
+          origin_city: form.startCity?.name?.split(',')[0]?.trim() ?? null,
+          destination_city: form.endCity?.name?.split(',')[0]?.trim() ?? null,
+          total_km: Math.round(result.totalDistance),
+          total_min: Math.round(result.totalDuration / 60),
+          departure_iso: form.startDate ?? null,
+          adults: form.adults ?? null,
+          kids_count: form.children ?? null,
+          waypoint_count: form.stops?.length ?? 0,
+        })
+      }
     }, 300)
     return () => clearTimeout(routeDebounceRef.current)
   }, [form.startCity, form.endCity, form.stops, fetchRoute])
@@ -317,9 +352,19 @@ export default function CreateTrip() {
   }
 
   const [showSaveModal, setShowSaveModal] = useState(false)
+  const [showValidation, setShowValidation] = useState(false)
+  const GUEST_TRIP_LIMIT = 3
 
   function handleSave() {
-    if (!user) { setShowSaveModal(true); return }
+    if (!user) {
+      const guestCount = isEditing ? trips.length : trips.length
+      if (!isEditing && guestCount >= GUEST_TRIP_LIMIT) {
+        setShowSaveModal(true)
+        return
+      }
+      doSave()
+      return
+    }
     doSave()
   }
 
@@ -342,6 +387,25 @@ export default function CreateTrip() {
       case 3: return true
       default: return false
     }
+  }
+
+  function validationMessage() {
+    if (step !== 0) return null
+    if (!form.startCity && !form.endCity) return 'Izaberi početni grad i odredište'
+    if (!form.startCity) return 'Izaberi početni grad'
+    if (!form.endCity) return 'Izaberi odredište'
+    if (!form.name) return 'Unesi naziv putovanja'
+    return null
+  }
+
+  function handleNext() {
+    if (!canProceed()) {
+      setShowValidation(true)
+      return
+    }
+    setShowValidation(false)
+    setStep(s => s + 1)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   return (
@@ -368,9 +432,14 @@ export default function CreateTrip() {
                 <path d="M15 18l-6-6 6-6"/>
               </svg>
             </button>
-            <h1 className="text-base font-bold text-text flex-1 text-center">
-              {isEditing ? t('editTrip') : t('newTrip')}
-            </h1>
+            <div className="flex-1 text-center">
+              <h1 className="text-base font-bold text-text leading-none">
+                {isEditing ? t('editTrip') : t('newTrip')}
+              </h1>
+              <p className="text-[11px] text-muted mt-0.5 font-medium">
+                Korak {step + 1} / {STEPS.length}
+              </p>
+            </div>
             <LanguageToggle />
           </div>
 
@@ -435,6 +504,7 @@ export default function CreateTrip() {
               suggestions={suggestions}
               smartLoading={smartLoading}
               routeLoading={routeLoading}
+              routeError={routeError}
               poisLoading={poisLoading}
               poisError={poisError}
               wantedStops={wantedStops}
@@ -453,10 +523,28 @@ export default function CreateTrip() {
         </AnimatePresence>
 
         {/* Navigation */}
-        <div className="flex items-center justify-between mt-8 pb-10">
+        <div className="mt-8 pb-10 space-y-3">
+          {/* Validation banner */}
+          <AnimatePresence>
+            {showValidation && validationMessage() && (
+              <motion.div
+                initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6 }}
+                className="flex items-center gap-2.5 bg-danger/8 border border-danger/25 rounded-xl px-4 py-2.5"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.5" className="shrink-0">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span className="text-sm font-semibold text-danger">{validationMessage()}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="flex items-center justify-between">
           {step > 0 ? (
             <button
-              onClick={() => { setStep(s => s - 1); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+              onClick={() => { setShowValidation(false); setStep(s => s - 1); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
               className="flex items-center gap-1.5 px-5 py-3 rounded-xl font-semibold text-muted hover:text-text border border-border hover:border-secondary/30 hover:bg-secondary/5 transition-all cursor-pointer"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg>
@@ -467,10 +555,9 @@ export default function CreateTrip() {
           {step < STEPS.length - 1 ? (
             <motion.button
               whileTap={{ scale: 0.96 }}
-              whileHover={{ scale: canProceed() ? 1.02 : 1 }}
-              onClick={() => { setStep(s => s + 1); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-              disabled={!canProceed()}
-              className="btn-clay flex items-center gap-2 px-8 py-3.5 bg-primary text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              whileHover={{ scale: 1.02 }}
+              onClick={handleNext}
+              className="btn-clay flex items-center gap-2 px-8 py-3.5 bg-primary text-white font-bold rounded-xl cursor-pointer"
             >
               {t('next')}
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
@@ -487,6 +574,7 @@ export default function CreateTrip() {
               {isEditing ? t('saveChanges') : t('save')}
             </motion.button>
           )}
+          </div>
         </div>
       </main>
 
@@ -497,6 +585,7 @@ export default function CreateTrip() {
             onClose={() => setShowSaveModal(false)}
             onSuccess={() => { setShowSaveModal(false); doSave() }}
             formData={form}
+            limitReached
           />
         )}
       </AnimatePresence>
@@ -507,7 +596,7 @@ export default function CreateTrip() {
 /* ============================================
    Save Auth Modal
    ============================================ */
-function SaveAuthModal({ onClose, onSuccess, formData }) {
+function SaveAuthModal({ onClose, onSuccess, formData, limitReached }) {
   const [tab, setTab] = useState('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -572,9 +661,13 @@ function SaveAuthModal({ onClose, onSuccess, formData }) {
             </svg>
           </div>
           <h2 className="text-xl font-bold text-text" style={{ fontFamily: 'Fredoka, sans-serif' }}>
-            Sačuvaj rutu
+            {limitReached ? 'Limit dostignut' : 'Sačuvaj rutu'}
           </h2>
-          <p className="text-sm text-muted mt-1">Prijavi se da sačuvaš svoju avanturu</p>
+          <p className="text-sm text-muted mt-1">
+            {limitReached
+              ? 'Možeš čuvati do 3 putovanja bez naloga. Registruj se za neograničen broj.'
+              : 'Prijavi se da sačuvaš svoju avanturu'}
+          </p>
         </div>
 
         {/* Tabs */}
@@ -898,6 +991,48 @@ function StepBasics({ form, updateForm }) {
               </div>
             </div>
           ))}
+        </div>
+      </SectionCard>
+
+      {/* Interests */}
+      <SectionCard label="Šta vam je važno na putu?" accent="border-sky-200">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs text-muted">Prilagodićemo preporuke na mapi</p>
+          <AnimatePresence>
+            {(form.interests || []).length > 0 && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                onClick={() => updateForm('interests', [])}
+                className="text-[11px] font-bold text-muted hover:text-danger transition-colors cursor-pointer"
+              >
+                Obriši sve
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {TRIP_INTERESTS.map(({ key, label }) => {
+            const selected = (form.interests || []).includes(key)
+            return (
+              <motion.button
+                key={key}
+                whileTap={{ scale: 0.93 }}
+                onClick={() => {
+                  const cur = form.interests || []
+                  updateForm('interests', selected ? cur.filter(k => k !== key) : [...cur, key])
+                }}
+                className={`px-3.5 py-1.5 rounded-full text-sm font-semibold border transition-all cursor-pointer ${
+                  selected
+                    ? 'border-primary/40 bg-primary/10 text-primary'
+                    : 'border-border bg-surface text-muted hover:border-secondary/30 hover:text-text'
+                }`}
+              >
+                {label}
+              </motion.button>
+            )
+          })}
         </div>
       </SectionCard>
 
@@ -1420,13 +1555,15 @@ function MobileBottomDrawer({ form, pois, suggestions, smartLoading, routeLoadin
 /* ============================================
    STEP 2: Route & Stops
    ============================================ */
-function StepRoute({ form, pois, curatedStops, suggestions, smartLoading, routeLoading, poisLoading, poisError, wantedStops, onWantedStopsChange, onAddStop, onRemoveStop, onNoteChange, onReorderStops, onRetryPOIs, onUpdateCity, onNext }) {
+function StepRoute({ form, pois, curatedStops, suggestions, smartLoading, routeLoading, routeError, poisLoading, poisError, wantedStops, onWantedStopsChange, onAddStop, onRemoveStop, onNoteChange, onReorderStops, onRetryPOIs, onUpdateCity, onNext }) {
   const startSearch = useNominatim()
   const endSearch = useNominatim()
   const [startQuery, setStartQuery] = useState(form.startCity?.city || form.startCity?.name?.split(',')[0] || '')
   const [endQuery, setEndQuery] = useState(form.endCity?.city || form.endCity?.name?.split(',')[0] || '')
   const [showStart, setShowStart] = useState(false)
   const [showEnd, setShowEnd] = useState(false)
+
+  const { pois: filteredPois, curatedStops: filteredCurated } = filterByInterests(pois, curatedStops, form.interests)
 
   const cityInputs = (
     <div className="flex flex-col xs:flex-row items-stretch xs:items-start gap-2">
@@ -1499,6 +1636,12 @@ function StepRoute({ form, pois, curatedStops, suggestions, smartLoading, routeL
         {/* City inputs strip */}
         <div className="px-4 pt-2 pb-2 bg-background shrink-0" style={{ zIndex: 20, position: 'relative' }}>
           {cityInputs}
+          {routeError && (
+            <div className="mt-2 px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-xs text-red-600 flex items-start gap-2">
+              <span className="mt-0.5 shrink-0">✕</span>
+              <span>{routeError}</span>
+            </div>
+          )}
         </div>
 
         {/* Map + bottom drawer */}
@@ -1516,8 +1659,8 @@ function StepRoute({ form, pois, curatedStops, suggestions, smartLoading, routeL
             endCity={form.endCity}
             stops={form.stops}
             route={form.route}
-            pois={pois}
-            curatedStops={curatedStops}
+            pois={filteredPois}
+            curatedStops={filteredCurated}
             onAddStop={onAddStop}
             onRemoveStop={onRemoveStop}
             onNoteChange={onNoteChange}
@@ -1544,7 +1687,13 @@ function StepRoute({ form, pois, curatedStops, suggestions, smartLoading, routeL
 
       {/* DESKTOP: standard side-by-side layout */}
       <div className="hidden lg:block">
-        <div className="mb-4">{cityInputs}</div>
+        <div className="mb-2">{cityInputs}</div>
+        {routeError && (
+          <div className="mb-4 px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600 flex items-start gap-2">
+            <span className="mt-0.5 shrink-0">✕</span>
+            <span>{routeError}</span>
+          </div>
+        )}
         <div className="flex gap-4" style={{ minHeight: '62vh' }}>
           <div className="flex-1 relative rounded-2xl overflow-hidden">
             {routeLoading && (
@@ -1560,8 +1709,8 @@ function StepRoute({ form, pois, curatedStops, suggestions, smartLoading, routeL
               endCity={form.endCity}
               stops={form.stops}
               route={form.route}
-              pois={pois}
-              curatedStops={curatedStops}
+              pois={filteredPois}
+              curatedStops={filteredCurated}
               onAddStop={onAddStop}
               onRemoveStop={onRemoveStop}
               onNoteChange={onNoteChange}

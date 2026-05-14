@@ -1,61 +1,66 @@
-import { useEffect, useRef } from 'react'
-import { useMap } from 'react-leaflet'
-import L from 'leaflet'
+import { useEffect } from 'react'
 
-/**
- * Draws an animated route polyline on the map from OSRM GeoJSON geometry.
- * The line animates drawing itself using stroke-dasharray/dashoffset.
- */
-export default function RoutePolyline({ geometry, color = '#F97316', weight = 5 }) {
-  const map = useMap()
-  const layerRef = useRef(null)
+const SOURCE_ID = 'drumko-route'
+const LAYERS = ['route-shadow', 'route-glow', 'route-main']
 
+export default function RoutePolyline({ map, geometry, color = '#F97316' }) {
   useEffect(() => {
-    if (!geometry || !geometry.coordinates || geometry.coordinates.length === 0) return
+    if (!map || !geometry?.coordinates?.length) return
 
-    if (layerRef.current) {
-      map.removeLayer(layerRef.current)
+    function addLayers() {
+      if (map.getSource(SOURCE_ID)) {
+        map.getSource(SOURCE_ID).setData(geometry)
+        return
+      }
+
+      map.addSource(SOURCE_ID, { type: 'geojson', data: geometry })
+
+      // Shadow — dark wide blur for depth
+      map.addLayer({
+        id: 'route-shadow',
+        type: 'line',
+        source: SOURCE_ID,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#000', 'line-width': 12, 'line-opacity': 0.07 },
+      })
+
+      // Glow halo — brand color, wide, semi-transparent
+      map.addLayer({
+        id: 'route-glow',
+        type: 'line',
+        source: SOURCE_ID,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': color, 'line-width': 11, 'line-opacity': 0.18 },
+      })
+
+      // Main route line
+      map.addLayer({
+        id: 'route-main',
+        type: 'line',
+        source: SOURCE_ID,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': color, 'line-width': 5, 'line-opacity': 0.92 },
+      })
     }
 
-    const latLngs = geometry.coordinates.map(([lng, lat]) => [lat, lng])
-
-    // Shadow layer — dark, wide, low opacity for depth
-    const shadowLine = L.polyline(latLngs, {
-      color: '#000000',
-      weight: weight + 5,
-      opacity: 0.07,
-      lineCap: 'round',
-      lineJoin: 'round',
-    })
-
-    // Glow halo — brand color, wide, semi-transparent
-    const glowLine = L.polyline(latLngs, {
-      color: color,
-      weight: weight + 4,
-      opacity: 0.18,
-      lineCap: 'round',
-      lineJoin: 'round',
-    })
-
-    // Main route line — solid, opaque
-    const mainLine = L.polyline(latLngs, {
-      color: color,
-      weight: weight,
-      opacity: 0.92,
-      lineCap: 'round',
-      lineJoin: 'round',
-    })
-
-    const group = L.layerGroup([shadowLine, glowLine, mainLine])
-    group.addTo(map)
-    layerRef.current = group
+    if (map.isStyleLoaded()) {
+      addLayers()
+    } else {
+      map.once('styledata', addLayers)
+    }
 
     return () => {
-      if (layerRef.current) {
-        map.removeLayer(layerRef.current)
-      }
+      LAYERS.forEach(id => { if (map.getLayer(id)) map.removeLayer(id) })
+      if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID)
     }
-  }, [geometry, color, weight, map])
+  }, [map, geometry])
+
+  // Update color on change without recreating layers
+  useEffect(() => {
+    if (!map || !map.getLayer('route-glow')) return
+    map.setPaintProperty('route-glow', 'line-color', color)
+    map.setPaintProperty('route-main', 'line-color', color)
+  }, [map, color])
 
   return null
 }

@@ -14,13 +14,15 @@ import Privacy from './pages/Privacy'
 import ResetPassword from './pages/ResetPassword'
 import SharedTrip from './pages/SharedTrip'
 import Admin from './pages/Admin'
+import OfflineIndicator from './components/UI/OfflineIndicator'
+import InstallPrompt from './components/UI/InstallPrompt'
 
 export default function App() {
   const location = useLocation()
   const navigate = useNavigate()
   const initialize = useAuthStore((s) => s.initialize)
   const user = useAuthStore((s) => s.user)
-  const loadTrips = useTripStore((s) => s.loadTrips)
+  const syncGuestTrips = useTripStore((s) => s.syncGuestTrips)
   const clearTrips = useTripStore((s) => s.clearTrips)
   const addTrip = useTripStore((s) => s.addTrip)
 
@@ -31,7 +33,7 @@ export default function App() {
   // Also restore any trip that was pending before Google OAuth redirect
   useEffect(() => {
     if (user) {
-      loadTrips(user.id)
+      syncGuestTrips(user.id)
       const raw = localStorage.getItem('drumko_pending_trip')
       if (raw) {
         try {
@@ -50,14 +52,17 @@ export default function App() {
   }, [user?.id])
 
   return (
-    <AnimatePresence mode="wait">
+    <>
+      <OfflineIndicator />
+      <InstallPrompt />
+      <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<Welcome />} />
         <Route path="/auth" element={<Auth />} />
-        <Route path="/trips" element={<AuthGuard><MyTrips /></AuthGuard>} />
+        <Route path="/trips" element={<MyTrips />} />
         <Route path="/trips/new" element={<CreateTrip />} />
-        <Route path="/trips/:id/edit" element={<AuthGuard><CreateTrip /></AuthGuard>} />
-        <Route path="/trips/:id" element={<AuthGuard><TripDetail /></AuthGuard>} />
+        <Route path="/trips/:id/edit" element={<CreateTrip />} />
+        <Route path="/trips/:id" element={<TripDetail />} />
         <Route path="/support" element={<Support />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/reset-password" element={<ResetPassword />} />
@@ -65,6 +70,7 @@ export default function App() {
         <Route path="/admin/stops" element={<Admin />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </AnimatePresence>
+      </AnimatePresence>
+    </>
   )
 }

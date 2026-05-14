@@ -1,10 +1,12 @@
 import { useState, useRef, useCallback } from 'react';
+import { haversineDistance } from '../utils/geoUtils';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const OSRM_BASE = 'https://router.project-osrm.org/route/v1/driving';
+const MAX_DRIVING_DISTANCE_KM = 5000;
 
 // ---------------------------------------------------------------------------
 // Hook: useOSRM
@@ -61,6 +63,17 @@ export default function useOSRM() {
     if (!waypoints || waypoints.length < 2) {
       setRoute(null);
       setError(null);
+      setLoading(false);
+      return null;
+    }
+
+    // ── Check straight-line distance ──────────────────────────────────────
+    const start = waypoints[0];
+    const end = waypoints[waypoints.length - 1];
+    const straightLineKm = haversineDistance(start.lat, start.lng, end.lat, end.lng);
+    if (straightLineKm > MAX_DRIVING_DISTANCE_KM) {
+      setRoute(null);
+      setError('Ruta nije moguća automobilom — odredište je previše daleko. Za međukontinentalna putovanja preporučujemo avionski prevoz.');
       setLoading(false);
       return null;
     }

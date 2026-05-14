@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence, animate, useAnimationControls } from 'framer-motion'
 import useTripStore from '../store/useTripStore'
 import useAuthStore from '../store/useAuthStore'
 import TripMap from '../components/Map/MapContainer'
-import { formatDistance, formatDuration } from '../utils/geoUtils'
+import { formatDistance, formatDuration, shortHash } from '../utils/geoUtils'
+import { track } from '../lib/analytics'
 import { calculateTripDays, formatCurrency, getBudgetSummary } from '../utils/budgetUtils'
 import useRouteStats from '../hooks/useRouteStats'
 import { useTranslation } from '../hooks/useTranslation'
@@ -12,6 +13,9 @@ import LanguageToggle from '../components/UI/LanguageToggle'
 import useNominatim from '../hooks/useNominatim'
 import useOSRM from '../hooks/useOSRM'
 import useCuratedStops from '../hooks/useCuratedStops'
+import { pdf } from '@react-pdf/renderer'
+import { TripPDFDocument } from '../components/TripPDF'
+import NotificationPrompt from '../components/UI/NotificationPrompt'
 
 const TABS = ['overview', 'map', 'stops', 'packing', 'budget']
 
@@ -29,6 +33,9 @@ export default function TripDetail() {
   const removeStop = useTripStore(s => s.removeStop)
   const user = useAuthStore(s => s.user)
   const [showShareModal, setShowShareModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [pdfLoading, setPdfLoading] = useState(false)
+  const [pdfError, setPdfError] = useState(false)
   const togglePackingItem = useTripStore(s => s.togglePackingItem)
   const addExpense = useTripStore(s => s.addExpense)
   const removeExpense = useTripStore(s => s.removeExpense)
@@ -66,14 +73,35 @@ export default function TripDetail() {
   const budgetSummary = getBudgetSummary(trip.budget)
 
   function handleDeleteTrip() {
-    if (window.confirm(`Delete "${trip.name}"? This cannot be undone.`)) {
-      deleteTrip(id, user?.id)
-      navigate('/trips')
-    }
+    setShowDeleteModal(true)
+  }
+
+  function confirmDeleteTrip() {
+    deleteTrip(id, user?.id)
+    navigate('/trips')
   }
 
   function handleShareTrip() {
     setShowShareModal(true)
+  }
+
+  async function handleExportPDF() {
+    setPdfLoading(true)
+    try {
+      const blob = await pdf(<TripPDFDocument trip={trip} />).toBlob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${trip.name.replace(/[^a-zA-Z0-9\s\-_]/g, '').trim() || 'drumko-trip'}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('PDF export failed:', err)
+      setPdfError(true)
+      setTimeout(() => setPdfError(false), 3500)
+    } finally {
+      setPdfLoading(false)
+    }
   }
 
   return (
@@ -90,6 +118,7 @@ export default function TripDetail() {
             <div className="flex items-center gap-3">
               <Link
                 to="/trips"
+                aria-label="Nazad na moja putovanja"
                 className="w-9 h-9 flex items-center justify-center rounded-xl border border-border bg-surface/80 hover:border-secondary/40 hover:bg-secondary/5 transition-all text-muted hover:text-text cursor-pointer"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -105,6 +134,23 @@ export default function TripDetail() {
             </div>
             <div className="flex items-center gap-2.5">
               <LanguageToggle />
+              <button
+                onClick={handleExportPDF}
+                disabled={pdfLoading}
+                aria-label="Izvezi PDF"
+                className="w-9 h-9 flex items-center justify-center rounded-xl border border-border bg-surface/80 hover:border-primary/40 hover:bg-primary/5 transition-all text-muted hover:text-primary cursor-pointer disabled:opacity-50"
+              >
+                {pdfLoading ? (
+                  <svg className="animate-spin" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/><path d="M12 2a10 10 0 0110 10" strokeLinecap="round"/>
+                  </svg>
+                ) : (
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                    <line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/>
+                  </svg>
+                )}
+              </button>
               <Link
                 to={`/trips/${id}/edit`}
                 className="text-sm font-semibold text-primary hover:text-primary-dark transition-colors"
@@ -115,15 +161,25 @@ export default function TripDetail() {
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-0.5 overflow-x-auto pb-0 -mx-1 px-1">
+          <div
+            role="tablist"
+            aria-label="Sekcije putovanja"
+            className="flex gap-0.5 overflow-x-auto pb-0 -mx-1 px-1"
+            onKeyDown={(e) => {
+              const idx = TABS.indexOf(activeTab)
+              if (e.key === 'ArrowRight') { e.preventDefault(); setActiveTab(TABS[(idx + 1) % TABS.length]) }
+              if (e.key === 'ArrowLeft')  { e.preventDefault(); setActiveTab(TABS[(idx - 1 + TABS.length) % TABS.length]) }
+            }}
+          >
             {TABS.map(key => (
               <button
                 key={key}
+                role="tab"
+                aria-selected={activeTab === key}
+                tabIndex={activeTab === key ? 0 : -1}
                 onClick={() => setActiveTab(key)}
-                className={`relative px-4 py-2.5 whitespace-nowrap text-sm font-semibold transition-colors cursor-pointer rounded-t-lg ${
-                  activeTab === key
-                    ? 'text-primary'
-                    : 'text-muted hover:text-text'
+                className={`relative px-4 py-2.5 whitespace-nowrap text-sm font-semibold transition-colors cursor-pointer rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                  activeTab === key ? 'text-primary' : 'text-muted hover:text-text'
                 }`}
               >
                 {t(key)}
@@ -153,6 +209,7 @@ export default function TripDetail() {
               budgetSummary={budgetSummary}
               onDelete={handleDeleteTrip}
               onShare={handleShareTrip}
+              userId={user?.id}
             />
           )}
           {activeTab === 'map' && (
@@ -205,6 +262,62 @@ export default function TripDetail() {
           />
         )}
       </AnimatePresence>
+
+      {/* Delete confirm modal */}
+      <AnimatePresence>
+        {showDeleteModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowDeleteModal(false)}
+          >
+            <motion.div
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="delete-trip-title"
+              initial={{ scale: 0.92, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.92, y: 20 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+              className="bg-surface rounded-2xl shadow-[0_8px_0_rgba(0,0,0,0.1),0_20px_60px_rgba(0,0,0,0.15)] w-full max-w-sm p-6 border border-border"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="w-12 h-12 bg-danger/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2">
+                  <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/>
+                </svg>
+              </div>
+              <h2 id="delete-trip-title" className="text-lg font-bold text-text text-center mb-1">Obrisati putovanje?</h2>
+              <p className="text-sm text-muted text-center mb-5">
+                <strong className="text-text">„{trip.name}"</strong> će biti trajno obrisano.
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setShowDeleteModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border-2 border-border text-sm font-bold text-muted hover:bg-background transition-colors cursor-pointer">
+                  Odustani
+                </button>
+                <motion.button whileTap={{ scale: 0.96 }} onClick={confirmDeleteTrip}
+                  className="flex-1 py-2.5 rounded-xl bg-danger text-white text-sm font-bold shadow-[0_3px_0_rgba(239,68,68,0.4)] cursor-pointer">
+                  Obriši
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* PDF error toast */}
+      <AnimatePresence>
+        {pdfError && (
+          <motion.div
+            initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 bg-danger text-white px-4 py-3 rounded-2xl shadow-lg text-sm font-semibold"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            PDF nije uspeo — pokušaj ponovo
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }
@@ -226,15 +339,22 @@ function ShareModal({ trip, onClose, onToggleShared }) {
     }
   }
 
+  async function emitShare(channel) {
+    const hash = await shortHash(trip.id)
+    track('share_clicked', { trip_id_hash: hash, channel })
+  }
+
   function copyLink() {
     navigator.clipboard.writeText(shareUrl).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2500)
     })
+    emitShare('link')
   }
 
   async function nativeShare() {
     await enableAndShare()
+    emitShare('native')
     navigator.share({
       title: trip.name,
       text: `Pogledaj moje putovanje — ${trip.name}`,
@@ -244,6 +364,7 @@ function ShareModal({ trip, onClose, onToggleShared }) {
 
   function whatsappShare() {
     enableAndShare()
+    emitShare('whatsapp')
     const text = encodeURIComponent(`Pogledaj moje putovanje "${trip.name}" 🚗\n${shareUrl}`)
     window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener')
   }
@@ -271,7 +392,7 @@ function ShareModal({ trip, onClose, onToggleShared }) {
               {trip.isShared ? 'Link je aktivan — svako može da vidi.' : 'Aktiviraj link pa podeli.'}
             </p>
           </div>
-          <button onClick={onClose} className="text-muted hover:text-text transition-colors ml-4 mt-0.5">
+          <button onClick={onClose} aria-label="Zatvori" className="text-muted hover:text-text transition-colors ml-4 mt-0.5">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
@@ -329,6 +450,8 @@ function ShareModal({ trip, onClose, onToggleShared }) {
           <p className="text-xs text-muted">{trip.isShared ? 'Deljenje aktivno' : 'Deljenje isključeno'}</p>
           <button
             onClick={() => onToggleShared(!trip.isShared)}
+            aria-label={trip.isShared ? 'Isključi deljenje' : 'Uključi deljenje'}
+            aria-pressed={trip.isShared}
             className={`w-10 h-5 rounded-full transition-colors relative flex-shrink-0 ${trip.isShared ? 'bg-primary' : 'bg-border'}`}
           >
             <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${trip.isShared ? 'left-5' : 'left-0.5'}`} />
@@ -393,7 +516,7 @@ function ConfettiBurst() {
 /* ============================================================
    TAB: Overview
    ============================================================ */
-function TabOverview({ trip, days, routeStats, packedCount, packingPct, budgetSummary, onDelete, onShare }) {
+function TabOverview({ trip, days, routeStats, packedCount, packingPct, budgetSummary, onDelete, onShare, userId }) {
   const { t } = useTranslation()
 
   return (
@@ -497,6 +620,9 @@ function TabOverview({ trip, days, routeStats, packedCount, packingPct, budgetSu
           </div>
         </div>
       )}
+
+      {/* Notification prompt */}
+      <NotificationPrompt userId={userId} tripName={trip.name} startDate={trip.startDate} />
 
       {/* Actions */}
       <div className="flex gap-3">
@@ -663,6 +789,7 @@ function TabStops({ trip, routeStats, updateStop, updateTrip, addStop, removeSto
                 {!isStart && !isEnd && (
                   <button
                     onClick={() => handleRemoveStop(stop.id)}
+                    aria-label={`Ukloni stanicu ${stop.name?.split(',')[0]}`}
                     className="w-8 h-8 flex items-center justify-center rounded-full bg-danger/10 text-danger hover:bg-danger/20 transition-colors shrink-0"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -721,7 +848,7 @@ function TabStops({ trip, routeStats, updateStop, updateTrip, addStop, removeSto
         </div>
 
         {recalculating && (
-          <p className="text-xs text-muted mt-2 text-center">Preračunavam rutu...</p>
+          <p aria-live="polite" className="text-xs text-muted mt-2 text-center">Preračunavam rutu...</p>
         )}
       </div>
 
@@ -734,6 +861,10 @@ function TabStops({ trip, routeStats, updateStop, updateTrip, addStop, removeSto
               href={buildNavUrl('google', trip)}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={async () => {
+                const hash = await shortHash(trip.id)
+                track('trip_started', { trip_id_hash: hash, stop_count: trip.stops?.length ?? 0, via: 'google' })
+              }}
               className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#4285F4] text-white text-sm font-bold rounded-2xl shadow-[0_4px_0_rgba(0,0,0,0.15)] hover:-translate-y-0.5 transition-all cursor-pointer"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -745,6 +876,10 @@ function TabStops({ trip, routeStats, updateStop, updateTrip, addStop, removeSto
               href={buildNavUrl('waze', trip)}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={async () => {
+                const hash = await shortHash(trip.id)
+                track('trip_started', { trip_id_hash: hash, stop_count: trip.stops?.length ?? 0, via: 'waze' })
+              }}
               className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#33CCFF] text-white text-sm font-bold rounded-2xl shadow-[0_4px_0_rgba(0,0,0,0.15)] hover:-translate-y-0.5 transition-all cursor-pointer"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -867,6 +1002,7 @@ function PackingItem({ item, onToggle, onRemove }) {
 
       <button
         onClick={onRemove}
+        aria-label={`Ukloni ${item.name}`}
         className="text-border hover:text-danger transition-colors p-1 shrink-0"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1410,6 +1546,7 @@ function TabBudget({ trip, addExpense, removeExpense }) {
                 </span>
                 <button
                   onClick={() => removeExpense(trip.id, expense.id)}
+                  aria-label={`Ukloni trošak ${expense.name}`}
                   className="text-muted hover:text-danger transition-colors p-1 shrink-0 cursor-pointer"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

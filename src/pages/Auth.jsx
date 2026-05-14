@@ -140,15 +140,24 @@ export default function Auth() {
                 </svg>
               </div>
               <h2 className="text-lg font-bold text-text mb-2">Provjeri inbox</h2>
-              <p className="text-sm text-muted mb-6 leading-relaxed">
+              <p className="text-sm text-muted mb-4 leading-relaxed">
                 Poslali smo link za resetovanje lozinke na <strong className="text-text">{email}</strong>.
                 Provjeri i spam folder.
               </p>
               <button
-                onClick={() => { setMode('form'); setError(null) }}
-                className="text-sm font-bold text-primary hover:underline cursor-pointer"
+                onClick={() => { setMode('forgot'); setError(null) }}
+                className="text-xs text-muted hover:text-primary font-semibold mb-4 cursor-pointer transition-colors block mx-auto"
               >
-                ← Nazad na prijavu
+                Nije stigao email? Pošalji ponovo
+              </button>
+              <button
+                onClick={() => { setMode('form'); setError(null) }}
+                className="btn-clay px-5 py-2.5 bg-primary text-white font-bold rounded-xl text-sm cursor-pointer flex items-center gap-1.5 mx-auto"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M15 18l-6-6 6-6"/>
+                </svg>
+                Nazad na prijavu
               </button>
             </div>
 
@@ -170,12 +179,14 @@ export default function Auth() {
               </p>
               <form onSubmit={handleForgot} className="space-y-3">
                 <div>
-                  <label className="block text-xs font-bold text-muted mb-1.5 uppercase tracking-wide">Email</label>
+                  <label htmlFor="forgot-email" className="block text-xs font-bold text-muted mb-1.5 uppercase tracking-wide">Email</label>
                   <input
+                    id="forgot-email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="tvoj@email.com"
+                    autoComplete="email"
                     required
                     className="w-full px-4 py-3 border-2 border-border rounded-xl text-sm bg-background text-text placeholder:text-muted focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                   />
@@ -251,19 +262,21 @@ export default function Auth() {
               {/* Form */}
               <form onSubmit={handleSubmit} className="space-y-3">
                 <div>
-                  <label className="block text-xs font-bold text-muted mb-1.5 uppercase tracking-wide">Email</label>
+                  <label htmlFor="auth-email" className="block text-xs font-bold text-muted mb-1.5 uppercase tracking-wide">Email</label>
                   <input
+                    id="auth-email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="tvoj@email.com"
+                    autoComplete="email"
                     required
                     className="w-full px-4 py-3 border-2 border-border rounded-xl text-sm bg-background text-text placeholder:text-muted focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                   />
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-bold text-muted uppercase tracking-wide">Lozinka</label>
+                    <label htmlFor="auth-password" className="block text-xs font-bold text-muted uppercase tracking-wide">Lozinka</label>
                     {tab === 'signin' && (
                       <button
                         type="button"
@@ -275,10 +288,12 @@ export default function Auth() {
                     )}
                   </div>
                   <input
+                    id="auth-password"
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
+                    autoComplete={tab === 'signin' ? 'current-password' : 'new-password'}
                     required
                     minLength={6}
                     className="w-full px-4 py-3 border-2 border-border rounded-xl text-sm bg-background text-text placeholder:text-muted focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"

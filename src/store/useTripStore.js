@@ -58,23 +58,36 @@ const useTripStore = create(
     (set, get) => ({
       trips: [],
       activeTripId: null,
+      tripsLoading: false,
 
       // ── Supabase sync ──────────────────────────────────────────────────
 
       /** Load all trips for the logged-in user from Supabase */
       loadTrips: async (userId) => {
+        set({ tripsLoading: true })
         const { data, error } = await supabase
           .from('trips')
           .select('*')
           .eq('user_id', userId)
           .order('created_at', { ascending: false })
 
-        if (error) { console.error('loadTrips:', error); return }
-        set({ trips: data.map(fromRow) })
+        if (error) { console.error('loadTrips:', error); set({ tripsLoading: false }); return }
+        set({ trips: data.map(fromRow), tripsLoading: false })
       },
 
       /** Clear local store on sign-out */
       clearTrips: () => set({ trips: [], activeTripId: null }),
+
+      /** On login: upsert any guest-created local trips to Supabase, then reload */
+      syncGuestTrips: async (userId) => {
+        const localTrips = get().trips
+        if (localTrips.length > 0) {
+          const rows = localTrips.map(t => toRow(t, userId))
+          const { error } = await supabase.from('trips').upsert(rows, { onConflict: 'id' })
+          if (error) console.error('syncGuestTrips:', error)
+        }
+        await get().loadTrips(userId)
+      },
 
       // ── Trip CRUD ──────────────────────────────────────────────────────
 
@@ -106,6 +119,23 @@ const useTripStore = create(
             if (error) console.error('updateTrip:', error)
           }
         }
+      },
+
+      duplicateTrip: async (trip, userId) => {
+        const newTrip = {
+          ...trip,
+          id: uid(),
+          name: `${trip.name} (kopija)`,
+          packingList: (trip.packingList || []).map(i => ({ ...i, checked: false })),
+          budget: { ...trip.budget, expenses: [] },
+          isShared: false,
+        }
+        set((s) => ({ trips: [newTrip, ...s.trips] }))
+        if (userId) {
+          const { error } = await supabase.from('trips').insert(toRow(newTrip, userId))
+          if (error) console.error('duplicateTrip:', error)
+        }
+        return newTrip
       },
 
       deleteTrip: async (id, userId) => {

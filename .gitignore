@@ -28,5 +28,8 @@ dist-ssr
 *.sln
 *.sw?
 
-.claude
+
 .mcp.json
+
+ my-video/*
+ my-video

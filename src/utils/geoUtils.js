@@ -293,3 +293,15 @@ export function getRouteKm(lat, lng, coordinates) {
   return Math.round(km);
 }
 
+export async function shortHash(input) {
+  const str = String(input ?? '');
+  if (typeof crypto === 'undefined' || !crypto.subtle) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(16).padStart(8, '0');
+  }
+  const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).slice(0, 4)
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
