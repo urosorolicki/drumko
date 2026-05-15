@@ -66,9 +66,12 @@ export default function StopMarker({ map, type, position, number, stop, index, t
       .addTo(map)
 
     return () => {
-      rootRef.current?.unmount()
+      const root = rootRef.current
+      rootRef.current = null
       markerRef.current?.remove()
       popupRef.current?.remove()
+      // Defer unmount to avoid calling it during React's render cycle
+      setTimeout(() => { try { root?.unmount() } catch (_) {} }, 0)
     }
   }, [map]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -84,7 +87,7 @@ export default function StopMarker({ map, type, position, number, stop, index, t
     }
   }, [position?.lat, position?.lng])
 
-  // Re-render popup content whenever relevant props change
+  // Re-render popup content whenever relevant props change (guard: root may be null after cleanup)
   useEffect(() => {
     if (!rootRef.current) return
     rootRef.current.render(

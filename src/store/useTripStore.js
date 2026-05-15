@@ -27,6 +27,9 @@ function toRow(trip, userId) {
     packing_list: trip.packingList,
     budget: trip.budget,
     is_shared: trip.isShared ?? false,
+    travel_style: trip.style ?? null,
+    kids_min_age: trip.kidsMinAge ?? null,
+    departure_time: trip.departureTime ?? null,
     updated_at: new Date().toISOString(),
   }
 }
@@ -47,6 +50,9 @@ function fromRow(row) {
     packingList: row.packing_list ?? [],
     budget: row.budget ?? { total: 0, currency: 'RSD', categories: {}, expenses: [] },
     isShared: row.is_shared ?? false,
+    style: row.travel_style ?? 'easy',
+    kidsMinAge: row.kids_min_age ?? null,
+    departureTime: row.departure_time ?? '07:00',
   }
 }
 

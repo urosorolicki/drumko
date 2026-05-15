@@ -9,6 +9,7 @@ import { DrumkoAd3 } from "./DrumkoAd3";
 import { DrumkoAd4 } from "./DrumkoAd4";
 import { DrumkoAd5 } from "./DrumkoAd5";
 import { DrumkoAdPremier } from "./DrumkoAdPremier";
+import { DrumkoViral } from "./DrumkoViral";
 
 export const RemotionRoot = () => {
   return (
@@ -20,6 +21,7 @@ export const RemotionRoot = () => {
       <Composition component={DrumkoAd4} id="drumko-ad-4" width={1080} height={1920} fps={30} durationInFrames={390} />
       <Composition component={DrumkoAd5}      id="drumko-ad-5"   width={1080} height={1920} fps={30} durationInFrames={450} />
       <Composition component={DrumkoAdPremier} id="drumko-premier" width={1080} height={1920} fps={30} durationInFrames={540} />
+      <Composition component={DrumkoViral} id="drumko-viral" width={1080} height={1920} fps={30} durationInFrames={980} />
       <Composition
         component={Main}
         id="welcome"

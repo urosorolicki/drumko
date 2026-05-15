@@ -20,6 +20,8 @@ import { getRouteKm } from '../utils/geoUtils'
 import useSmartStops from '../hooks/useSmartStops'
 import useCuratedStops from '../hooks/useCuratedStops'
 import { track } from '../lib/analytics'
+import { detectCorridor } from '../utils/corridors'
+import TripTimeline from '../components/Timeline/TripTimeline'
 
 const STEPS = ['stepBasics', 'stepRoute', 'stepPacking', 'stepBudget']
 
@@ -196,6 +198,9 @@ export default function CreateTrip() {
       },
       route: { geometry: null, totalDistance: 0, totalDuration: 0 },
       interests: [],
+      style: 'easy',
+      kidsMinAge: null,
+      departureTime: '07:00',
     }
     try {
       const fork = localStorage.getItem('drumko_fork_trip')
@@ -218,11 +223,41 @@ export default function CreateTrip() {
   // Routing
   const { fetchRoute, route: routeData, loading: routeLoading, error: routeError } = useOSRM()
   const { fetchPOIs, pois, loading: poisLoading, error: poisError } = useGeoapify()
-  const { buildSuggestions, suggestions, loading: smartLoading } = useSmartStops()
   const { stops: curatedStops, fetchAlongRoute: fetchCuratedStops } = useCuratedStops()
+
+  const corridor = useMemo(
+    () => detectCorridor(form.startCity?.name, form.endCity?.name),
+    [form.startCity, form.endCity]
+  )
+
+  const departureIso = useMemo(() => {
+    if (!form.startDate) return new Date().toISOString()
+    const t = form.departureTime || '07:00'
+    return new Date(`${form.startDate}T${t}:00`).toISOString()
+  }, [form.startDate, form.departureTime])
+
+  const { suggestions, narrative, loading: smartLoading } = useSmartStops({
+    routeGeometry: routeData?.geometry?.coordinates,
+    totalDistanceKm: routeData?.totalDistance,
+    totalDurationSec: routeData?.totalDuration,
+    departureIso,
+    adults: form.adults,
+    kids: form.children,
+    kidsMinAge: form.kidsMinAge,
+    style: form.style,
+    corridor,
+    geoapifyPois: pois,
+  })
 
   // How many stop suggestions the user wants
   const [wantedStops, setWantedStops] = useState(3)
+
+  // Which stop is focused (map pans to it)
+  const [focusedStopLatLng, setFocusedStopLatLng] = useState(null)
+
+  function handleFocusStop(stop) {
+    if (stop?.lat && stop?.lng) setFocusedStopLatLng({ lat: stop.lat, lng: stop.lng })
+  }
 
   // Auto-fill trip name when both cities are selected and user hasn't typed anything
   useEffect(() => {
@@ -274,12 +309,7 @@ export default function CreateTrip() {
     }
   }, [routeData?.geometry])
 
-  // Build smart stop suggestions as soon as POIs are ready — no step restriction
-  useEffect(() => {
-    if (routeData?.geometry && pois.length > 0) {
-      buildSuggestions(routeData.geometry.coordinates, pois, routeData.totalDistance, wantedStops)
-    }
-  }, [pois, routeData?.geometry, wantedStops])
+  // Suggestions now derive automatically from useSmartStops inputs — no manual trigger needed.
 
   // Generate packing list when moving to step 3
   useEffect(() => {
@@ -502,6 +532,7 @@ export default function CreateTrip() {
               pois={pois}
               curatedStops={curatedStops}
               suggestions={suggestions}
+              narrative={narrative}
               smartLoading={smartLoading}
               routeLoading={routeLoading}
               routeError={routeError}
@@ -516,6 +547,8 @@ export default function CreateTrip() {
               onUpdateCity={(key, val) => updateForm(key, val)}
               onRetryPOIs={() => form.route?.geometry && fetchPOIs(form.route.geometry.coordinates, Object.keys(poiCategories))}
               onNext={() => { setStep(s => s + 1); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+              focusedStopLatLng={focusedStopLatLng}
+              onFocusStop={handleFocusStop}
             />
           )}
           {step === 2 && <StepPacking key="packing" form={form} setForm={setForm} />}
@@ -1036,6 +1069,80 @@ function StepBasics({ form, updateForm }) {
         </div>
       </SectionCard>
 
+      {/* Travel style + departure hour + kids age */}
+      <SectionCard label="Kako planiraš putovanje?" accent="border-sky-200">
+        <p className="text-xs text-muted mb-3">Ovo nam pomaže da odredimo ritam pauza</p>
+        <div className="space-y-4">
+          <div>
+            <p className="text-[11px] font-bold text-muted uppercase tracking-wide mb-2">Stil</p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: 'fast',    label: 'Brzo',         hint: 'manje pauza' },
+                { key: 'easy',    label: 'Ležerno',      hint: 'standard' },
+                { key: 'explore', label: 'Istraživanje', hint: 'češće pauze' },
+              ].map(opt => {
+                const selected = (form.style ?? 'easy') === opt.key
+                return (
+                  <motion.button
+                    key={opt.key}
+                    whileTap={{ scale: 0.93 }}
+                    onClick={() => updateForm('style', opt.key)}
+                    className={`min-h-[44px] px-4 py-2 rounded-full text-sm font-semibold border-2 transition-all cursor-pointer ${
+                      selected
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border bg-surface text-muted hover:border-secondary/30'
+                    }`}
+                  >
+                    {opt.label}
+                    <span className="block text-[10px] font-normal text-muted">{opt.hint}</span>
+                  </motion.button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[11px] font-bold text-muted uppercase tracking-wide mb-2">Polazak (sat)</p>
+            <input
+              type="time"
+              value={form.departureTime ?? '07:00'}
+              onChange={(e) => updateForm('departureTime', e.target.value)}
+              className="w-full min-h-[44px] px-4 py-3 border-2 border-border rounded-xl bg-background text-text text-base font-semibold focus:outline-none focus:border-secondary focus:ring-2 focus:ring-secondary/30 transition-all"
+            />
+          </div>
+
+          {form.children > 0 && (
+            <div>
+              <p className="text-[11px] font-bold text-muted uppercase tracking-wide mb-2">Uzrast najmlađeg deteta</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { val: 2,  label: '0–2' },
+                  { val: 5,  label: '3–5' },
+                  { val: 12, label: '6–12' },
+                  { val: 17, label: '13–18' },
+                ].map(opt => {
+                  const selected = form.kidsMinAge === opt.val
+                  return (
+                    <motion.button
+                      key={opt.val}
+                      whileTap={{ scale: 0.93 }}
+                      onClick={() => updateForm('kidsMinAge', opt.val)}
+                      className={`min-h-[44px] px-4 py-2 rounded-full text-sm font-semibold border-2 transition-all cursor-pointer ${
+                        selected
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border bg-surface text-muted hover:border-secondary/30'
+                      }`}
+                    >
+                      {opt.label}
+                    </motion.button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </SectionCard>
+
       {/* Route */}
       <SectionCard label="Ruta" accent="border-sky-200">
         <div className="space-y-3">
@@ -1198,7 +1305,7 @@ function SortableRouteStop({ stop, onRemove }) {
 /* ============================================
    Route Builder Panel — unified stop management
    ============================================ */
-function RouteBuilderPanel({ form, pois, suggestions, smartLoading, routeLoading, poisLoading, onAddStop, onRemoveStop, onReorderStops }) {
+function RouteBuilderPanel({ form, pois, suggestions, narrative, smartLoading, routeLoading, poisLoading, onAddStop, onRemoveStop, onReorderStops, onFocusStop }) {
   const stopSearch = useNominatim()
   const [searchQuery, setSearchQuery] = useState('')
   const [showResults, setShowResults] = useState(false)
@@ -1364,60 +1471,20 @@ function RouteBuilderPanel({ form, pois, suggestions, smartLoading, routeLoading
       </div>
 
       {/* Route timeline */}
-      <div className="flex-1 overflow-y-auto p-3">
-        {!hasRoute ? (
-          <div className="text-center py-10 px-4">
-            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-3">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F97316" strokeWidth="2">
-                <path d="M3 7h18M3 12h18M3 17h18"/>
-              </svg>
-            </div>
-            <p className="text-sm font-bold text-text mb-1">Unesi polazak i odredište</p>
-            <p className="text-xs text-muted">Ruta se prikazuje čim uneseš gradove</p>
-          </div>
-        ) : (
-          <>
-            <RouteNode isStart name={startName} />
-
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={form.stops.map(s => s.id)} strategy={verticalListSortingStrategy}>
-                {stopsWithKm.map((stop, i) => {
-                  const prevKm = i === 0 ? 0 : (stopsWithKm[i - 1].km ?? 0)
-                  const segKm = stop.km != null ? Math.max(0, stop.km - prevKm) : null
-                  const gapSuggestions = getGapSuggestions(prevKm, stop.km ?? totalKm)
-
-                  return (
-                    <div key={stop.id}>
-                      <SegmentGap
-                        segKm={segKm}
-                        suggestions={gapSuggestions}
-                        onAddSuggestion={addSuggestion}
-                        loading={smartLoading && i === 0 && form.stops.length === 1}
-                      />
-                      <SortableRouteStop stop={stop} onRemove={() => onRemoveStop(stop.id)} />
-                    </div>
-                  )
-                })}
-              </SortableContext>
-            </DndContext>
-
-            {(() => {
-              const lastKm = stopsWithKm.length > 0 ? (stopsWithKm[stopsWithKm.length - 1].km ?? 0) : 0
-              const segKm = totalKm != null ? Math.max(0, totalKm - lastKm) : null
-              const gapSuggestions = getGapSuggestions(lastKm, totalKm ?? Infinity)
-              return (
-                <SegmentGap
-                  segKm={segKm}
-                  suggestions={gapSuggestions}
-                  onAddSuggestion={addSuggestion}
-                  loading={smartLoading && form.stops.length === 0}
-                />
-              )
-            })()}
-
-            <RouteNode name={endName} />
-          </>
-        )}
+      <div className="flex-1 overflow-y-auto">
+        <TripTimeline
+          suggestions={suggestions}
+          confirmedStops={stopsWithKm}
+          startCity={form.startCity}
+          endCity={form.endCity}
+          narrative={narrative}
+          loading={smartLoading && !routeLoading}
+          totalDurationSec={form.route?.totalDuration || 0}
+          totalKm={totalKm || 0}
+          onAcceptSuggestion={onAddStop}
+          onRemoveConfirmed={onRemoveStop}
+          onFocus={onFocusStop}
+        />
       </div>
 
       {/* Stats + nav apps */}
@@ -1471,7 +1538,7 @@ function RouteBuilderPanel({ form, pois, suggestions, smartLoading, routeLoading
 /* ============================================
    Mobile Bottom Drawer — route step
    ============================================ */
-function MobileBottomDrawer({ form, pois, suggestions, smartLoading, routeLoading, poisLoading, onAddStop, onRemoveStop, onReorderStops, onNext }) {
+function MobileBottomDrawer({ form, pois, suggestions, narrative, smartLoading, routeLoading, poisLoading, onAddStop, onRemoveStop, onReorderStops, onFocusStop, onNext }) {
   const [open, setOpen] = useState(false)
 
   const totalKm = form.route?.totalDistance ? Math.round(form.route.totalDistance) : null
@@ -1540,12 +1607,14 @@ function MobileBottomDrawer({ form, pois, suggestions, smartLoading, routeLoadin
           form={form}
           pois={pois}
           suggestions={suggestions}
+          narrative={narrative}
           smartLoading={smartLoading}
           routeLoading={routeLoading}
           poisLoading={poisLoading}
           onAddStop={onAddStop}
           onRemoveStop={onRemoveStop}
           onReorderStops={onReorderStops}
+          onFocusStop={onFocusStop}
         />
       </div>
     </motion.div>
@@ -1555,7 +1624,7 @@ function MobileBottomDrawer({ form, pois, suggestions, smartLoading, routeLoadin
 /* ============================================
    STEP 2: Route & Stops
    ============================================ */
-function StepRoute({ form, pois, curatedStops, suggestions, smartLoading, routeLoading, routeError, poisLoading, poisError, wantedStops, onWantedStopsChange, onAddStop, onRemoveStop, onNoteChange, onReorderStops, onRetryPOIs, onUpdateCity, onNext }) {
+function StepRoute({ form, pois, curatedStops, suggestions, narrative, smartLoading, routeLoading, routeError, poisLoading, poisError, wantedStops, onWantedStopsChange, onAddStop, onRemoveStop, onNoteChange, onReorderStops, onRetryPOIs, onUpdateCity, onNext, focusedStopLatLng, onFocusStop }) {
   const startSearch = useNominatim()
   const endSearch = useNominatim()
   const [startQuery, setStartQuery] = useState(form.startCity?.city || form.startCity?.name?.split(',')[0] || '')
@@ -1612,12 +1681,14 @@ function StepRoute({ form, pois, curatedStops, suggestions, smartLoading, routeL
       form={form}
       pois={pois}
       suggestions={suggestions}
+      narrative={narrative}
       smartLoading={smartLoading}
       routeLoading={routeLoading}
       poisLoading={poisLoading}
       onAddStop={onAddStop}
       onRemoveStop={onRemoveStop}
       onReorderStops={onReorderStops}
+      onFocusStop={onFocusStop}
     />
   )
 
@@ -1669,17 +1740,20 @@ function StepRoute({ form, pois, curatedStops, suggestions, smartLoading, routeL
             showStats={false}
             height="100%"
             className="h-full"
+            focusedStopLatLng={focusedStopLatLng}
           />
           <MobileBottomDrawer
             form={form}
             pois={pois}
             suggestions={suggestions}
+            narrative={narrative}
             smartLoading={smartLoading}
             routeLoading={routeLoading}
             poisLoading={poisLoading}
             onAddStop={onAddStop}
             onRemoveStop={onRemoveStop}
             onReorderStops={onReorderStops}
+            onFocusStop={onFocusStop}
             onNext={onNext}
           />
         </div>
@@ -1718,6 +1792,7 @@ function StepRoute({ form, pois, curatedStops, suggestions, smartLoading, routeL
               showPOIs={true}
               showStats={false}
               height="min(580px, 65vh)"
+              focusedStopLatLng={focusedStopLatLng}
             />
           </div>
           <div

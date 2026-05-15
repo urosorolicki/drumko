@@ -178,9 +178,11 @@ function CuratedMarker({ map, stop, onAddAsStop }) {
     popupRef.current.on('close', () => rootRef.current?.unmount())
 
     return () => {
-      rootRef.current?.unmount()
+      const root = rootRef.current
+      rootRef.current = null
       markerRef.current?.remove()
       popupRef.current?.remove()
+      setTimeout(() => { try { root?.unmount() } catch (_) {} }, 0)
     }
   }, [map, stop.id]) // eslint-disable-line react-hooks/exhaustive-deps
 

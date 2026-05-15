@@ -80,6 +80,7 @@ export default function TripMap({
   interactive = true,
   className = '',
   height = '500px',
+  focusedStopLatLng = null,
 }) {
   const containerRef = useRef(null)
   const mapRef = useRef(null)
@@ -146,6 +147,13 @@ export default function TripMap({
 
     return () => clearTimeout(id)
   }, [allPoints])
+
+  // ── Focus on a specific stop when timeline card is tapped ────────────────
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady || !focusedStopLatLng?.lat) return
+    map.easeTo({ center: [focusedStopLatLng.lng, focusedStopLatLng.lat], zoom: 11, duration: 600 })
+  }, [focusedStopLatLng, mapReady])
 
   // ── Map click → add stop confirmation popup ──────────────────────────────
   useEffect(() => {
